@@ -1,11 +1,13 @@
 #include <M5Unified.h>
 #include "sensors/imu_sensor.hpp"
 #include "ui/ink_display.hpp"
+#include "utility/sdhandler.hpp"
 
 //system objects
 //IMU Sensor
 IMUSensor imu;
 InkDisplay display;
+SDHandler SDHandlr;
 //Air Density Calculator
 //Display Manager
 //Power state manager
@@ -37,12 +39,12 @@ void loop() {
   }
 
   imu.update();
+  SDHandlr.initSDCard();
   
   imu.printToSerial();
 
-  display.screenRefresh(imu);
-  display.drawIMUBox(imu);
+  display.screenRefresh(imu, SDHandlr);
   //refresh screen with new imu values
-  delay(200);
+  delay(20);
 
 }

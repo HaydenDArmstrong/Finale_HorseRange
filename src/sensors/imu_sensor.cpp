@@ -70,3 +70,23 @@ Baro IMUSensor::getBaro() {
     data.cTemp     = bmp.cTemp;         // °C
     return data;
 }
+
+
+float IMUSensor::airDensityCalc(IMUSensor& imu) {
+    //gas constant
+    float R_d = 287.058;
+    //pressure in Pa
+    float P = imu.getBaro().pressure;
+
+    //termperature in Kelvin
+    float T1 = (imu.getBaro().cTemp + 273.15);
+
+    float T2 = imu.getTemp() + 273.15;
+
+    float Tavg = (T1 + T2) /2;
+
+    float rho = P / (R_d * Tavg);
+
+    return rho;
+
+}

@@ -38,6 +38,7 @@ public:
     float getTemp() const;
 
     void printToSerial();
+    float airDensityCalc(IMUSensor& imu);
 
     Baro getBaro() ;
 private:

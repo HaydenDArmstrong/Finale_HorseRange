@@ -1,18 +1,23 @@
 #include "ink_display.hpp"
+#include <string.h>
 #include <M5Unified.h>
 
 void InkDisplay::initScreen(){
-  M5.Display.setEpdMode(epd_mode_t::epd_fast);
-  //fast refresh
-  M5.Display.setTextSize(2);
-  M5.Display.clear();
+    //make sure display is completely white to strart
+    M5.Display.clear(WHITE);
+    M5.Display.display();
+   M5.Display.setRotation(1);           // ← landscape, makes coords correct
+    M5.Display.setEpdMode(epd_quality);  // ← reliable full refresh
+    M5.Display.setTextSize(2);
+    M5.Display.setTextColor(BLACK, WHITE); // ← explicit fg/bg
+    M5.Display.clear();
 
-  M5.Display.setCursor(0,10);
-  M5.Display.println("IMU DATA: ");
-  M5.Display.display();
+    M5.Display.setCursor(0, 10);
+    M5.Display.println("IMU DATA:");
+    M5.Display.display();
 }
 
-void InkDisplay::screenRefresh(IMUSensor& imu){
+void InkDisplay::screenRefresh(IMUSensor& imu, SDHandler& sdhandle){
     const AccelVector& a = imu.getAccel();
     const GyroVector& g = imu.getGyro();
     const MagVector& m = imu.getMag();
@@ -20,8 +25,10 @@ void InkDisplay::screenRefresh(IMUSensor& imu){
     
     float t = imu.getTemp();
 
+    float rho = imu.airDensityCalc(imu);
+
     // Clear only text area
-    M5.Display.fillRect(0, 40, 320, 140, WHITE);  // width x height
+    M5.Display.fillRect(0, 40, 360, 140, WHITE);  // x,y, width height color
 
     M5.Display.setCursor(0, 40);
     M5.Display.printf("ACC  %.2f  %.2f  %.2f\n", a.x, a.y, a.z);
@@ -30,6 +37,11 @@ void InkDisplay::screenRefresh(IMUSensor& imu){
     M5.Display.printf("TMP  %.2f C\n", t);
     M5.Display.printf("ALT  %.1f m  P %.0f Pa\n", baro.altitude, baro.pressure);
 
+    M5.Display.printf("Air Density: %.3f kg/m^3\n", rho);
+
+    M5.Display.printf("%s", sdhandle.getSDStatusStr());
+    //return function result
+    //if we do SDHandler::getSDStatusStr we return the address of the function
 
     M5.Display.display();
     
@@ -82,4 +94,6 @@ void InkDisplay::drawIMUBox( IMUSensor& imu) {
     M5.Display.drawLine((x0+x2)/2, (y0+y2)/2, (x1+x3)/2, (y1+y3)/2, BLACK);
 
     M5.Display.display();
+   // M5.getButton();
+    
 }
