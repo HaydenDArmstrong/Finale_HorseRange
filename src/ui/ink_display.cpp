@@ -17,7 +17,8 @@ void InkDisplay::initScreen(){
     M5.Display.display();
 }
 
-void InkDisplay::screenRefresh(IMUSensor& imu, SDHandler& sdhandle){
+void InkDisplay::screenRefresh(IMUSensor& imu, SDHandler& sdhandle, float angle, float mass, float distance){
+    //primitive distance passed by value
     const AccelVector& a = imu.getAccel();
     const GyroVector& g = imu.getGyro();
     const MagVector& m = imu.getMag();
@@ -39,10 +40,12 @@ void InkDisplay::screenRefresh(IMUSensor& imu, SDHandler& sdhandle){
 
     M5.Display.printf("Air Density: %.3f kg/m^3\n", rho);
 
-    M5.Display.printf("%s", sdhandle.getSDStatusStr());
+    M5.Display.printf("%s\n", sdhandle.getSDStatusStr());
     //return function result
     //if we do SDHandler::getSDStatusStr we return the address of the function
-
+    M5.Display.printf("ANG  %.2f deg\n", angle);
+    M5.Display.printf("MASS %.2f g\n", mass);
+    M5.Display.printf("DIST %.2f m\n", distance);
     M5.Display.display();
     
 }

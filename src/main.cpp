@@ -3,6 +3,7 @@
 #include "ui/ink_display.hpp"
 #include "utility/sdhandler.hpp"
 
+bool tableLoaded = false;
 //system objects
 //IMU Sensor
 IMUSensor imu;
@@ -19,17 +20,20 @@ void setup() {
   cfg.external_imu = true;
   cfg.internal_imu = false;
 
+
   M5.begin(cfg);
 
   Serial.println("IMU Ready");
   //init screen here
   imu.init();
   display.initScreen();
+  SDHandlr.initSDCard();
 
   
 }
 
 void loop() {
+
   M5.update();
 
   if (!M5.Imu.isEnabled()) {
@@ -39,12 +43,22 @@ void loop() {
   }
 
   imu.update();
-  SDHandlr.initSDCard();
+
+   if (!tableLoaded) {
+    float rho = imu.airDensityCalc(imu);
+    Serial.printf("rho = %.4f\n", rho);
+    SDHandlr.csvRead(rho);
+    tableLoaded = true;
+  }
+
+  float angle = 0; //from IMU;
+  float mass = 2.5f; //user input
+float distance = SDHandlr.lookupDistance(angle, mass);
   
   imu.printToSerial();
 
-  display.screenRefresh(imu, SDHandlr);
+  display.screenRefresh(imu, SDHandlr, angle, mass, distance);
   //refresh screen with new imu values
-  delay(20);
+  delay(200);
 
 }

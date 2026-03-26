@@ -1,4 +1,6 @@
 #include "sdhandler.hpp"
+#include <string.h>
+#include <M5Unified.h>
 
 #define SD_SPI_SCK_PIN  14
 #define SD_SPI_MISO_PIN 13
@@ -64,83 +66,134 @@ char* SDHandler::getSDStatusStr() { //const: string literals are read-only
 }
 
 void SDHandler::buildCSVFilename(float rho, char* bufOutput, size_t bufSize) {
+    Serial.printf("Building FILENAME\n");
     float roundedVal = round(rho / 0.05f) * 0.05f; //rounds to 0.05
 
     int intPart = (int)roundedVal;
     int decPart = round((roundedVal - intPart) * 100);
 
-    snprintf(bufOutput, bufSize, "/%d-%02d.csv", intPart, decPart);
+    snprintf(bufOutput, bufSize, "/rho-%d.%02d.csv", intPart, decPart);
 } 
+
 void SDHandler::csvRead(float rho) {
-    char airFileName[16] = {0}; //filename of air density
+    char airFileName[16] = {0};
     buildCSVFilename(rho, airFileName, sizeof(airFileName));
+    Serial.println(airFileName);
 
-    Serial.println(airFileName); //debug
+    // reset state so re-calling with new rho starts clean
+    _numRows = 0;
+    _numCols = 0;
+    _maxCols = 0;
+    memset(_colHeaders, 0, sizeof(_colHeaders));
+memset(_rowHeaders, 0, sizeof(_rowHeaders));
+memset(_distTable,  0, sizeof(_distTable));
 
-    Serial.println("Read");
     auto readFile = SD.open(airFileName, FILE_READ, false);
-    //TODO: Current CSV file determined by the rho value (rho-rhodecimal.txt)
-    //open current file
-    int rowT = 0; //row tracker
-    int colT = 0; //column tracker
-    int bufIdx = 0; //buffer tracker
 
+    if (!readFile) {
+        Serial.println("READ file NOT Detected");
+        _status = SDSTATUS::ERROR;
+        return;
+    }
+
+    int bufIdx = 0;
+    char buff[16] = {0};
     char c;
     float val;
 
-    float colHeaders[10];
-    float rowHeaders[10];
-    float distTable[10][10];
+    while (readFile.available()) {
+        c = readFile.read();
 
-    if (readFile) {
-        char buff[16] = {0}; //wont have a string bigger than 16 char
-        while (readFile.available()) {
-            c = readFile.read();
-            if (c == ',' || c == '\n') { //at every comma (cell end) or newline (row end)
-                sscanf(buff, "%f", &val); // parse the data into float
+        
 
-                if (rowT == 0) { //first column
-                    colHeaders[colT] = val;
-                } else if (colT == 0) { //first row
-                    rowHeaders[rowT] = val;
+        // skip non-ASCII encoding garbage (Â°, Ï etc.)
+        // these are bytes > 127, plain text is always <= 127
+        if ((unsigned char)c > 127) continue;
+
+        // skip carriage return (windows line endings produce \r\n)
+        if (c == '\r') continue;
+
+        if (c == ',' || c == '\n') {
+            // only store if buffer has something — empty cell means skip
+            if (bufIdx > 0) {
+                buff[bufIdx] = '\0'; //NEED Null terminate here
+                sscanf(buff, "%f", &val); // sscanf stops at letters, so "30ft" → 30.0
+
+                if (_numRows == 0) {
+                    _colHeaders[_numCols++] = val;
+                } else if (_numCols == 0) {
+                    _rowHeaders[_numRows] = val;
+                    _numCols++;
                 } else {
-                    distTable[rowT][colT] = val; //if not in first colum first row, normal data
+                    _distTable[_numRows][_numCols++] = val;
                 }
 
                 bufIdx = 0;
-                buff[0] = '\0';
-
-                if (c == ',') { //specific to cells
-                    colT++; //increase column
-                    if (colT >= 10) { colT = 9; } //bounds: clamp so we dont overflow distTable
-                } else {  // '\n' new row
-                    rowT++; //increase row count
-                    colT = 0; //reset column count
-                    if (rowT >= 10) { rowT = 9; } //bounds: clamp so we dont overflow distTable
-                }
-            } else {
-                if (bufIdx < 15) buff[bufIdx++] = c; //bounds: guard against cell longer than 15 chars
+                //buff[bufIdx] = '\0';
+                memset(buff,0,sizeof(buff));
             }
-        }
-        readFile.close();
 
-        //flush: last cell wont have a trailing delimiter so process whatever is left in buff
-        if (bufIdx > 0) {
-            sscanf(buff, "%f", &val);
-            if (rowT == 0) {
-                colHeaders[colT] = val;
-            } else if (colT == 0) {
-                rowHeaders[rowT] = val;
-            } else {
-                distTable[rowT][colT] = val;
+            if (c == '\n') {
+                if (_numCols > _maxCols)
+        _maxCols = _numCols;
+
+    Serial.printf("  EOL: _numCols=%d _maxCols=%d\n", _numCols, _maxCols);
+
+    _numRows++;
+    _numCols = 0;
             }
-        }
 
-       // _status = SDSTATUS::IDLE;
-       _status = SDSTATUS::READING;
-    } else {
-        Serial.println("READ file NOT Detected");
-        _status = SDSTATUS::ERROR;
+        } else {
+            if (bufIdx < 15) buff[bufIdx++] = c;
+        }
     }
 
+    // flush last cell — file may not end with \n
+    if (bufIdx > 0) {
+        sscanf(buff, "%f", &val);
+        if (_numRows == 0) {
+            _colHeaders[_numCols] = val;
+        } else if (_numCols == 0) {
+            _rowHeaders[_numRows] = val;
+        } else {
+            _distTable[_numRows][_numCols] = val;
+        }
+    }
+
+    // debug: confirm parse results
+    Serial.printf("Parsed %d rows, %d cols\n", _numRows, _maxCols);
+    for (int i = 0; i < _maxCols; i++) Serial.printf("  colHeader[%d] = %.2f\n", i, _colHeaders[i]);
+    for (int i = 0; i < _numRows; i++) Serial.printf("  rowHeader[%d] = %.2f\n", i, _rowHeaders[i]);
+
+    readFile.close();
+    _status = SDSTATUS::READING;
+}
+
+//once we store as a 2d array, we can know perform lookup
+float SDHandler::lookupDistance(float angle, float mass) {
+    Serial.printf("LOOKUp\n");
+    int bestRow = 0;
+    float bestDifference = fabs(_rowHeaders[0] - angle);
+
+    
+    for (int i = 1; i < _numRows; i++) {
+        float difference = fabs(_rowHeaders[i]-angle);
+        if (difference < bestDifference) {
+            bestDifference = difference;
+            bestRow = i;
+        }
+    }
+
+    int bestCol = 0;
+    bestDifference = fabs(_colHeaders[0] - mass);
+    bestDifference = fabs(_colHeaders[0] - mass);
+    for (int i = 1; i < _maxCols; i++) {
+        float diff = fabs(_colHeaders[i] - mass);
+        if (diff < bestDifference) {
+            bestDifference  = diff;
+            bestCol = i;
+        }
+    }
+
+    return _distTable[bestRow][bestCol];
 }
