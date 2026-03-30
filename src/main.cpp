@@ -5,12 +5,12 @@
 
 bool tableLoaded = false;
 //system objects
-//IMU Sensor
+//IMU Sensor / Air Density Calculator 
 IMUSensor imu;
-InkDisplay display;
-SDHandler SDHandlr;
-//Air Density Calculator
 //Display Manager
+InkDisplay display;
+//SD Card logic manager.
+SDHandler SDHandlr;
 //Power state manager
 
 void setup() {
