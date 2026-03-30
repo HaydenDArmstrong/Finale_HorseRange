@@ -8,12 +8,12 @@ void InkDisplay::initScreen(){
     M5.Display.display();
    M5.Display.setRotation(1);           // ← landscape, makes coords correct
     M5.Display.setEpdMode(epd_quality);  // ← reliable full refresh
-    M5.Display.setTextSize(2);
+    M5.Display.setTextSize(6);
     M5.Display.setTextColor(BLACK, WHITE); // ← explicit fg/bg
     M5.Display.clear();
+    M5.Display.setTextFont(1);
 
     M5.Display.setCursor(0, 10);
-    M5.Display.println("IMU DATA:");
     M5.Display.display();
 }
 
@@ -29,23 +29,25 @@ void InkDisplay::screenRefresh(IMUSensor& imu, SDHandler& sdhandle, float angle,
     float rho = imu.airDensityCalc(imu);
 
     // Clear only text area
-    M5.Display.fillRect(0, 40, 360, 140, WHITE);  // x,y, width height color
+    M5.Display.clear(WHITE);
 
     M5.Display.setCursor(0, 40);
-    M5.Display.printf("ACC  %.2f  %.2f  %.2f\n", a.x, a.y, a.z);
-    M5.Display.printf("GYR  %.2f  %.2f  %.2f\n", g.x, g.y, g.z);
-    M5.Display.printf("MAG  %.2f  %.2f  %.2f\n", m.x, m.y, m.z);
-    M5.Display.printf("TMP  %.2f C\n", t);
-    M5.Display.printf("ALT  %.1f m  P %.0f Pa\n", baro.altitude, baro.pressure);
+    M5.Display.printf("SD STATUS: %s\n", sdhandle.getSDStatusStr());
+    M5.Display.println("CURRENT READ:");
+    M5.Display.printf("ACC  %.2fX  %.2fY  %.2fZ\n", a.x, a.y, a.z);
+    //M5.Display.printf("YDEG: %.2F\n", a.y*90);
+    //M5.Display.printf("GYR  %.2fX  %.2fY %.2f\nZ", g.x, g.y, g.z);
+    //M5.Display.printf("MAG  %.2fX  %.2fY  %.2f\nZ", m.x, m.y, m.z);
+    //M5.Display.printf("TMP  %.2f C\n", t);
+    //M5.Display.printf("ALT  %.1f m  P %.0f Pa\n", baro.altitude, baro.pressure);
 
     M5.Display.printf("Air Density: %.3f kg/m^3\n", rho);
 
-    M5.Display.printf("%s\n", sdhandle.getSDStatusStr());
     //return function result
     //if we do SDHandler::getSDStatusStr we return the address of the function
     M5.Display.printf("ANG  %.2f deg\n", angle);
-    M5.Display.printf("MASS %.2f g\n", mass);
-    M5.Display.printf("DIST %.2f m\n", distance);
+    M5.Display.printf("GAUGE %.2f MPa\n", mass);
+    M5.Display.printf("SET DISTANCE TO:  %.2f m\n", distance);
     M5.Display.display();
     
 }

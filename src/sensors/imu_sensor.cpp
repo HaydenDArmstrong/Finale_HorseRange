@@ -2,6 +2,10 @@
 #include <M5Unified.h>
 #include <M5UnitENV.h>
 
+void IMUSensor::Calib() {
+    M5.Imu.setCalibration(100,100,100);
+}
+
 
 void IMUSensor::init() {
      // Try both common BMP280 addresses
@@ -15,6 +19,7 @@ void IMUSensor::init() {
             Serial.println(addr, HEX);
             break;
         }
+
     }
 
     if (!found) {
@@ -55,10 +60,11 @@ float IMUSensor::getTemp() const {
 }
 
 void IMUSensor::printToSerial() {
-  Serial.printf("ACC  %.3f  %.3f  %.3f\n", accel.x, accel.y, accel.z);
-  Serial.printf("GYR  %.3f  %.3f  %.3f\n", gyro.x, gyro.y, gyro.z);
-  Serial.printf("MAG  %.3f  %.3f  %.3f\n", mag.x, mag.y, mag.z);
+  Serial.printf("ACC  %.3fX  %.3fY  %.3fZ\n", accel.x, accel.y, accel.z);
+  Serial.printf("GYR  %.3fX  %.3fY  %.3fZ\n", gyro.x, gyro.y, gyro.z);
+  Serial.printf("MAG  %.3fX  %.3fY  %.3fZ\n", mag.x, mag.y, mag.z);
   Serial.printf("TMP  %.2f C\n", temp);
+  Serial.printf("ALT: %3fm", bmp.altitude);
   Serial.println("-------------------------");
 }
 

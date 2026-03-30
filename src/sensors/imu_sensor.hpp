@@ -28,6 +28,7 @@ struct MagVector {
 };
 class IMUSensor {
 public:
+    void Calib();
     void init();
     void update();
     //const vector& getvector(); -> return a reference to the original box/vector

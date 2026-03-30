@@ -26,6 +26,7 @@ void setup() {
   Serial.println("IMU Ready");
   //init screen here
   imu.init();
+  imu.Calib();
   display.initScreen();
   SDHandlr.initSDCard();
 
@@ -33,6 +34,8 @@ void setup() {
 }
 
 void loop() {
+
+  const AccelVector& a = imu.getAccel();
 
   M5.update();
 
@@ -51,14 +54,14 @@ void loop() {
     tableLoaded = true;
   }
 
-  float angle = 0; //from IMU;
-  float mass = 2.5f; //user input
+  float angle = a.y*90; //from IMU;
+  float mass = 6.0; //user input
 float distance = SDHandlr.lookupDistance(angle, mass);
   
   imu.printToSerial();
 
   display.screenRefresh(imu, SDHandlr, angle, mass, distance);
   //refresh screen with new imu values
-  delay(200);
+  delay(5000);
 
 }

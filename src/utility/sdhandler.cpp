@@ -126,10 +126,10 @@ memset(_distTable,  0, sizeof(_distTable));
                     _numCols++;
                 } else {
                     _distTable[_numRows][_numCols++] = val;
+
                 }
 
                 bufIdx = 0;
-                //buff[bufIdx] = '\0';
                 memset(buff,0,sizeof(buff));
             }
 
@@ -159,11 +159,19 @@ memset(_distTable,  0, sizeof(_distTable));
             _distTable[_numRows][_numCols] = val;
         }
     }
-
+    float currentVal;
+    int j = 0;
     // debug: confirm parse results
     Serial.printf("Parsed %d rows, %d cols\n", _numRows, _maxCols);
     for (int i = 0; i < _maxCols; i++) Serial.printf("  colHeader[%d] = %.2f\n", i, _colHeaders[i]);
     for (int i = 0; i < _numRows; i++) Serial.printf("  rowHeader[%d] = %.2f\n", i, _rowHeaders[i]);
+    for (int i = 0; i< _numRows; i++) {
+        for (j = 0; j < _maxCols; j++) {
+         currentVal = _distTable[i][j];
+        Serial.printf("[%d,%d]: %.2f", i, j, currentVal);
+        }
+        Serial.println();
+    }
 
     readFile.close();
     _status = SDSTATUS::READING;
@@ -187,13 +195,19 @@ float SDHandler::lookupDistance(float angle, float mass) {
     int bestCol = 0;
     bestDifference = fabs(_colHeaders[0] - mass);
     bestDifference = fabs(_colHeaders[0] - mass);
-    for (int i = 1; i < _maxCols; i++) {
-        float diff = fabs(_colHeaders[i] - mass);
+    for (int j = 1; j < _maxCols; j++) {
+        float diff = fabs(_colHeaders[j] - mass);
         if (diff < bestDifference) {
             bestDifference  = diff;
-            bestCol = i;
+            bestCol = j;
         }
     }
 
-    return _distTable[bestRow][bestCol];
+    int physicalCol = bestCol + 1;
+    //acounts for top left column corner
+
+    Serial.printf("BestRow %d", bestRow);
+    Serial.printf("BestCol %d", physicalCol);
+
+    return _distTable[bestRow][physicalCol];
 }
