@@ -13,7 +13,7 @@ void InkDisplay::initScreen()
     M5.Display.setTextSize(6);
     M5.Display.setTextColor(BLACK, WHITE); //  explicit fg/bg
 
-    M5.Display.setFont(&fonts::FreeSansBold9pt7b);
+    M5.Display.setFont(&fonts::DejaVu18);
     M5.Display.setTextSize(2);
     // M5.Display.setCursor(0, 10);
     M5.Display.display();
@@ -55,59 +55,47 @@ void InkDisplay::screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle,
 
     setTextStyle(4);
 
-    M5.Display.printf("Target Distance:  %.2f m\n", distance);
+    M5.Display.printf("Scope Distance: %.2f m\n", distance);
     M5.Display.display();
 }
 
 #include <math.h> // for atan2, sqrt, sin, cos
 
-void InkDisplay::drawIMUBox(IMUSensor &imu)
+void InkDisplay::drawAngle(IMUSensor &imu)
 {
     const AccelVector &a = imu.getAccel();
     const MagVector &m = imu.getMag();
 
-    float pitch = atan2(a.x, sqrt(a.y * a.y + a.z * a.z));
-    float roll = atan2(a.y, a.z);
+    float angle = a.y*90.0f;
+    float rad = angle * PI / 180.0f;
 
-    pitch *= 180.0 / PI;
-    roll *= 180.0 / PI;
+    const int cx     = 850;
+    const int cy     = 60;
+    const int length = 40;
+    const int radius = 45;
 
-    // Box parameters
-    int cx = 160; // center X
-    int cy = 200; // center Y — moved below text
-    int w = 50;
-    int h = 30;
+    //clear intended area
 
-    float cosR = cos(roll);
-    float sinR = sin(roll);
-    float cosP = cos(pitch);
-    float sinP = sin(pitch);
+    M5.Display.fillRect(cx - radius - 5, cy - radius - 5, (radius + 5) * 2, (radius +5) *2, WHITE);
 
-    int x0 = cx - w * cosR + h * sinP;
-    int y0 = cy - w * sinR - h * sinP;
+    //outer ring
 
-    int x1 = cx + w * cosR + h * sinP;
-    int y1 = cy + w * sinR - h * sinP;
+    M5.Display.drawCircle(cx, cy, radius, BLACK);
 
-    int x2 = cx + w * cosR - h * sinP;
-    int y2 = cy + w * sinR + h * sinP;
+    int endX = cx + (int)(length * sin(rad));
+    int endY = cy - (int)(length * cos(rad));
 
-    int x3 = cx - w * cosR - h * sinP;
-    int y3 = cy - w * sinR + h * sinP;
+    M5.Display.drawLine(cx, cy, endX, endY, BLACK);
 
-    // Clear only box area
-    M5.Display.fillRect(0, 140, 320, 120, WHITE);
+      M5.Display.fillCircle(cx, cy, 4, BLACK);
 
-    M5.Display.drawLine(x0, y0, x1, y1, BLACK);
-    M5.Display.drawLine(x1, y1, x2, y2, BLACK);
-    M5.Display.drawLine(x2, y2, x3, y3, BLACK);
-    M5.Display.drawLine(x3, y3, x0, y0, BLACK);
-
-    // Optional cross
-    M5.Display.drawLine((x0 + x2) / 2, (y0 + y2) / 2, (x1 + x3) / 2, (y1 + y3) / 2, BLACK);
+    // 5. Angle value as text underneath
+    M5.Display.setCursor(cx - 20, cy + radius + 8);
+    setTextStyle(1);
+    M5.Display.printf("%.1f", angle);
 
     M5.Display.display();
-    // M5.getButton();
+
 }
 
 void InkDisplay::userInputStage(SDHandler &sdhandle, float &gauge)

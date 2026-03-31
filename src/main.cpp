@@ -15,7 +15,7 @@ RTC_DATA_ATTR static bool  tableLoaded  = false;
 RTC_DATA_ATTR static float gauge        = 2.0f;
 
 // Sleep timeout: enter deep sleep after this many ms of inactivity
-static const uint32_t SLEEP_TIMEOUT_MS = 6000;   // 1 minute
+static const uint32_t SLEEP_TIMEOUT_MS = 90000;   // 90 seconds
 static uint32_t       lastActivityMs   = 0;
 
 // system objects  (re-created each boot)
@@ -141,7 +141,6 @@ void loop()
 
         imu.update();
         const AccelVector &a = imu.getAccel();
-
         if (!tableLoaded) {
             float rho = imu.airDensityCalc(imu);
             Serial.printf("rho = %.4f\n", rho);
@@ -154,6 +153,7 @@ void loop()
 
         imu.printToSerial();
         display.screenRefresh(imu, SDHandlr, angle, gauge, distance);
+        display.drawAngle(imu);
         delay(500);
     }
 
