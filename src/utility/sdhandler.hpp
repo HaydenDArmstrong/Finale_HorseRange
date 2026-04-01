@@ -26,6 +26,8 @@ public:
 
     float lookupDistance(float angle, float mass);
 
+    float lookupGauge(float angle, float inputDistance);
+
 private:
     void buildCSVFilename(float rho, char *bufOutput, size_t bufSize);
     SDSTATUS _status = SDSTATUS::UNDETECTED; // undetected by defualt

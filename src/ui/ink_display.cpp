@@ -19,7 +19,7 @@ void InkDisplay::initScreen()
     M5.Display.display();
 }
 
-void InkDisplay::screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle, float gauge, float distance)
+void InkDisplay::screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle, float dartType, float distance, float gauge)
 {
     // primitive distance passed by value
     const AccelVector &a = imu.getAccel();
@@ -51,11 +51,11 @@ void InkDisplay::screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle,
     // if we do SDHandler::getSDStatusStr we return the address of the function
 
     M5.Display.printf("Current Angle  %.2f deg\n", angle);
-    M5.Display.printf("Current Gauge %.2f MPa\n", gauge);
-
-    setTextStyle(4);
+    M5.Display.printf("Current dartType %.2f CC\n", dartType);
 
     M5.Display.printf("Scope Distance: %.2f m\n", distance);
+    setTextStyle(4);
+    M5.Display.printf("Gauge: %.2f MPa\n", gauge);
     M5.Display.display();
 }
 
@@ -98,11 +98,14 @@ void InkDisplay::drawAngle(IMUSensor &imu)
 
 }
 
-void InkDisplay::userInputStage(SDHandler &sdhandle, float &gauge)
+void InkDisplay::userInputStage(SDHandler &sdhandle, float &dartType, float &inputDist, bool &isDistanceInputted)
 {
 
-    const float MAX_GAUGE = 13.0;
-    const float MIN_GAUGE = 2.0;
+    const int MAX_dartType = 2;
+    const int MIN_dartType = 1;
+
+    const int MAX_DIST = 150;
+    const int MIN_DIST = 10;
 
     const int y = 250;
     const int x = 80;
@@ -113,48 +116,48 @@ void InkDisplay::userInputStage(SDHandler &sdhandle, float &gauge)
     // M5.Display.clear(WHITE);
 
     static bool firstRun = true;
+    static bool dartTypeSelected = false;
+
+
+
     if (firstRun)
     {
         M5.Display.clear(WHITE);
         M5.Display.setCursor(0, 40);
         M5.Display.printf("Battery: %d%% %d mV\n", M5.Power.getBatteryLevel(), M5.Power.getBatteryVoltage());
-        M5.Display.printf("LEFT = +0.5  RIGHT = -0.5\n");
+        M5.Display.printf("LEFT = 2cc  RIGHT = 1cc\n");
         M5.Display.printf("Press DOWN when ready\n");
-        // draw initial gauge value too
+        // draw initial dartType value too
         M5.Display.fillRect(0, y, M5.Display.width(), lineH, WHITE);
         M5.Display.setCursor(0, y);
-        M5.Display.printf("Gauge Value : %.1f\n", gauge);
+        M5.Display.printf("Dart Type : %.1f\n", dartType);
         M5.Display.display();
         firstRun = false;
     }
+    static int stage = 0;  // persists between calls
 
-    if (M5.BtnA.isPressed() && !M5.BtnA.isHolding())
-    {
+if (stage == 0) {
+    // dart type selection
+    if (M5.BtnA.isPressed() && !M5.BtnA.isHolding()) { dartType += 0.5f; if (dartType > MAX_DIST) {dartType = MIN_DIST;} changed = true; }
+    if (M5.BtnC.isPressed() && !M5.BtnC.isHolding()) { dartType -= 0.5f; changed = true; }
+    if (M5.BtnB.isPressed() && !M5.BtnB.isHolding()) { stage = 1; changed = true; } // advance
+}
+else if (stage == 1) {
+    // distance selection
+    if (M5.BtnA.isPressed() && !M5.BtnA.isHolding()) { inputDist += 5.0f; changed = true; }
+    if (M5.BtnC.isPressed() && !M5.BtnC.isHolding()) { inputDist -= 5.0f; changed = true; }
+    if (M5.BtnB.isPressed() && !M5.BtnB.isHolding()) { isDistanceInputted = true; changed = true; }
+}
 
-        gauge = gauge + 0.5;
-        if (gauge > MAX_GAUGE)
-        {
-            gauge = MIN_GAUGE;
-        }
-        changed = true;
-    }
 
-    if (M5.BtnC.isPressed() && !M5.BtnC.isHolding())
-    {
-
-        gauge = gauge - 0.5;
-        if (gauge < MIN_GAUGE)
-        {
-            gauge = MAX_GAUGE;
-        }
-        changed = true;
-    }
     if (changed)
     {
 
         M5.Display.fillRect(0, y, M5.Display.width(), lineH, WHITE);
+        M5.Display.fillRect(0, y-20, M5.Display.width(), lineH, WHITE);
         M5.Display.setCursor(0, y);
-        M5.Display.printf("Gauge Value : %.1f\n", gauge);
+        M5.Display.printf("dartType Value : %.1f\n", dartType);
+        M5.Display.printf("distance Value : %.1f\n", inputDist);
         M5.Display.display();
     }
 }

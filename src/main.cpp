@@ -12,7 +12,9 @@
 
 RTC_DATA_ATTR static bool  isConfigured = false;
 RTC_DATA_ATTR static bool  tableLoaded  = false;
-RTC_DATA_ATTR static float gauge        = 2.0f;
+RTC_DATA_ATTR static float dartType        = 2.0f;
+RTC_DATA_ATTR static float inputDistance   = 0.0f;
+RTC_DATA_ATTR static bool isDistanceInputted = false;
 
 // Sleep timeout: enter deep sleep after this many ms of inactivity
 static const uint32_t SLEEP_TIMEOUT_MS = 90000;   // 90 seconds
@@ -80,8 +82,8 @@ void setup()
             break;
     }
 
-    Serial.printf("isConfigured=%d tableLoaded=%d gauge=%.1f\n",
-                   isConfigured, tableLoaded, gauge);
+    Serial.printf("isConfigured=%d tableLoaded=%d dartType=%.1f\n",
+                   isConfigured, tableLoaded, dartType);
 
     Serial.println("Starting IMU init...");
     imu.init();
@@ -112,10 +114,12 @@ void loop()
     //Configuration stage (skipped after deep-sleep wakes)
     if (!isConfigured)
     {
-        while (!M5.BtnB.isPressed())
+      isDistanceInputted = false;
+      inputDistance = 0.0f;
+        while(!isDistanceInputted)
         {
             M5.update();
-            display.userInputStage(SDHandlr, gauge);
+            display.userInputStage(SDHandlr, dartType, inputDistance, isDistanceInputted);
 
             // Allow sleep even during config if user walks away
             if (millis() - lastActivityMs > SLEEP_TIMEOUT_MS) {
@@ -149,10 +153,11 @@ void loop()
         }
 
         float angle    = a.y * 90.0f;
-        float distance = SDHandlr.lookupDistance(angle, gauge);
+        //float distance = SDHandlr.lookupDistance(angle, dartType);
+        float gauge = SDHandlr.lookupGauge(angle, inputDistance);
 
         imu.printToSerial();
-        display.screenRefresh(imu, SDHandlr, angle, gauge, distance);
+        display.screenRefresh(imu, SDHandlr, angle, dartType, inputDistance, gauge);
         display.drawAngle(imu);
         delay(500);
     }

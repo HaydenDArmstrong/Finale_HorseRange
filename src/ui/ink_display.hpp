@@ -6,9 +6,9 @@ class InkDisplay
 {
 public:
     void initScreen();
-    void screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle, float mass, float distance);
+    void screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle, float mass, float distance, float gauge);
     void drawAngle(IMUSensor &imu);
-    void userInputStage(SDHandler &sdhandle, float &gauge);
+    void userInputStage(SDHandler &sdhandle, float &gauge, float &inputDistance, bool &isDistanceInputted);
 
 private:
     void setTextStyle(uint8_t size);
