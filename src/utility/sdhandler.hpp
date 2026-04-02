@@ -16,7 +16,7 @@ class SDHandler
 public:
     void initSDCard();
     void update();
-    void csvRead(float rho);
+    void csvRead(float rho, float dartType);
 
     SDSTATUS getSDStatus()
     {
@@ -29,11 +29,12 @@ public:
     float lookupGauge(float angle, float inputDistance);
 
 private:
-    void buildCSVFilename(float rho, char *bufOutput, size_t bufSize);
+    void buildCSVFilename(float rho, float dartType,  char *bufOutput, size_t bufSize);
     SDSTATUS _status = SDSTATUS::UNDETECTED; // undetected by defualt
-    float _colHeaders[10] = {0};
-    float _rowHeaders[10] = {0};
-    float _distTable[10][10] = {0};
+    //increased to 16 for extra space
+    float _colHeaders[16] = {0};
+    float _rowHeaders[16] = {0};
+    float _distTable[16][16] = {0};
     int _numCols = 0;
     int _numRows = 0;
     int _maxCols = 0;

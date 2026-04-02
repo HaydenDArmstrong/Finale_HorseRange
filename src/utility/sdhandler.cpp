@@ -81,7 +81,7 @@ char *SDHandler::getSDStatusStr()
     }
 }
 
-void SDHandler::buildCSVFilename(float rho, char *bufOutput, size_t bufSize)
+void SDHandler::buildCSVFilename(float rho, float dartType, char *bufOutput, size_t bufSize)
 {
     Serial.printf("Building FILENAME\n");
     float roundedVal = round(rho / 0.05f) * 0.05f; // rounds to 0.05
@@ -89,13 +89,31 @@ void SDHandler::buildCSVFilename(float rho, char *bufOutput, size_t bufSize)
     int intPart = (int)roundedVal;
     int decPart = round((roundedVal - intPart) * 100);
 
-    snprintf(bufOutput, bufSize, "/rho-%d.%02d.csv", intPart, decPart);
+    //Based off of google sheet given filenames
+
+    if (dartType == 0.5)
+    { //IF 0.5CC dart is used. For now we just go from 1.0 estimate
+        snprintf(bufOutput, bufSize, "/Target Book G2 practice 1cc - rho-%d.%02d.csv", intPart, decPart);
+    }
+    if (dartType == 1.5)
+    { //IF 0.5CC dart is used. For now we just go for 2.0 estimate
+        snprintf(bufOutput, bufSize, "/Target Book G2 practice 1cc - rho-%d.%02d.csv", intPart, decPart);  
+    }
+
+    if (dartType == 1.0)
+    { //TODO: Repleace with real instead of practice when propre sheet is developed.
+    snprintf(bufOutput, bufSize, "/Target Book G2 real2cc - rho-%d.%02d.csv", intPart, decPart);
+    }
+    if (dartType == 2.0)
+    {
+      snprintf(bufOutput, bufSize, "/Target Book G2 real2cc - rho-%d.%02d.csv", intPart, decPart);  
+    }
 }
 
-void SDHandler::csvRead(float rho)
+void SDHandler::csvRead(float rho, float dartType)
 {
-    char airFileName[16] = {0};
-    buildCSVFilename(rho, airFileName, sizeof(airFileName));
+    char airFileName[64] = {0};
+    buildCSVFilename(rho, dartType, airFileName, sizeof(airFileName));
     Serial.println(airFileName);
 
     // reset state so re-calling with new rho starts clean
@@ -111,6 +129,7 @@ void SDHandler::csvRead(float rho)
     if (!readFile)
     {
         Serial.println("READ file NOT Detected");
+        M5.Display.printf("FILE NOT FOUND");
         _status = SDSTATUS::ERROR;
         return;
     }
@@ -216,7 +235,6 @@ void SDHandler::csvRead(float rho)
     _status = SDSTATUS::READING;
 }
 
-
 float SDHandler::lookupGauge(float angle, float inputDistance)
 {
     // 1. Find best row matching angle
@@ -245,10 +263,12 @@ float SDHandler::lookupGauge(float angle, float inputDistance)
         }
     }
 
+    Serial.printf("Bestcol: %d, column header: %d, bestRow %d", bestCol, _colHeaders[bestCol-1], bestRow);
+
     // 3. Return the column header (gauge) for that column
-    return _colHeaders[bestCol - 1]; // -1 because colHeaders has no corner offset
+    return _colHeaders[bestCol]; // -1 because colHeaders has no corner offset
 }
-    // once we store as a 2d array, we can know perform lookup
+// once we store as a 2d array, we can know perform lookup
 float SDHandler::lookupDistance(float angle, float gauge)
 {
     Serial.printf("LOOKUp\n");

@@ -5,25 +5,25 @@
 #include "esp_sleep.h"
 
 // GPIO 37 = BtnA, 38 = BtnB, 39 = BtnC
-#define WAKE_BTN_GPIO   GPIO_NUM_38
-#define WAKE_BTN_LEVEL  0           // buttons are active-LOW 
+#define WAKE_BTN_GPIO GPIO_NUM_38
+#define WAKE_BTN_LEVEL 0 // buttons are active-LOW
 
 // RTC_DATA_ATTR: survives deep sleep, stored in RTC SRAM (~8 KB)
 
-RTC_DATA_ATTR static bool  isConfigured = false;
-RTC_DATA_ATTR static bool  tableLoaded  = false;
-RTC_DATA_ATTR static float dartType        = 2.0f;
-RTC_DATA_ATTR static float inputDistance   = 0.0f;
+RTC_DATA_ATTR static bool isConfigured = false;
+RTC_DATA_ATTR static bool tableLoaded = false;
+RTC_DATA_ATTR static float dartType = 2.0f;
+RTC_DATA_ATTR static float inputDistance = 0.0f;
 RTC_DATA_ATTR static bool isDistanceInputted = false;
 
 // Sleep timeout: enter deep sleep after this many ms of inactivity
-static const uint32_t SLEEP_TIMEOUT_MS = 90000;   // 90 seconds
-static uint32_t       lastActivityMs   = 0;
+static const uint32_t SLEEP_TIMEOUT_MS = 90000; // 90 seconds
+static uint32_t lastActivityMs = 0;
 
 // system objects  (re-created each boot)
-IMUSensor  imu;
+IMUSensor imu;
 InkDisplay display;
-SDHandler  SDHandlr;
+SDHandler SDHandlr;
 
 // Helper: put the device into deep sleep, wake on BtnB press
 void enterDeepSleep()
@@ -37,7 +37,6 @@ void enterDeepSleep()
     esp_deep_sleep_start();
     // execution never reaches here
 }
-
 
 // void enterLightSleep()
 // {
@@ -63,32 +62,34 @@ void setup()
 
     auto cfg = M5.config();
     cfg.serial_baudrate = 115200;
-    cfg.external_imu   = true;
-    cfg.internal_imu   = false;
+    cfg.external_imu = true;
+    cfg.internal_imu = false;
     M5.begin(cfg);
     Serial.println("M5 ready");
 
     // Wakeup reason
     esp_sleep_wakeup_cause_t reason = esp_sleep_get_wakeup_cause();
-    switch (reason) {
-        case ESP_SLEEP_WAKEUP_EXT0:
-            Serial.println("WAKE: button press (ext0)");
-            break;
-        case ESP_SLEEP_WAKEUP_UNDEFINED:
-            Serial.println("WAKE: cold boot");
-            break;
-        default:
-            Serial.printf("WAKE: other reason %d\n", reason);
-            break;
+    switch (reason)
+    {
+    case ESP_SLEEP_WAKEUP_EXT0:
+        Serial.println("WAKE: button press (ext0)");
+        break;
+    case ESP_SLEEP_WAKEUP_UNDEFINED:
+        Serial.println("WAKE: cold boot");
+        break;
+    default:
+        Serial.printf("WAKE: other reason %d\n", reason);
+        break;
     }
 
     Serial.printf("isConfigured=%d tableLoaded=%d dartType=%.1f\n",
-                   isConfigured, tableLoaded, dartType);
+                  isConfigured, tableLoaded, dartType);
 
     Serial.println("Starting IMU init...");
     imu.init();
 
-    if (!isConfigured) {
+    if (!isConfigured)
+    {
         Serial.println("Calibrating IMU...");
         imu.Calib();
     }
@@ -99,8 +100,9 @@ void setup()
     Serial.println("SD init...");
     SDHandlr.initSDCard();
 
-    if (tableLoaded) {
-        SDHandlr.csvRead(imu.airDensityCalc(imu));
+    if (tableLoaded)
+    {
+        SDHandlr.csvRead(imu.airDensityCalc(imu), dartType);
     }
 
     lastActivityMs = millis();
@@ -111,28 +113,30 @@ void loop()
 {
     M5.update();
 
-    //Configuration stage (skipped after deep-sleep wakes)
+    // Configuration stage (skipped after deep-sleep wakes)
     if (!isConfigured)
     {
-      isDistanceInputted = false;
-      inputDistance = 0.0f;
-        while(!isDistanceInputted)
+        isDistanceInputted = false;
+        inputDistance = 0.0f;
+        while (!isDistanceInputted)
         {
             M5.update();
             display.userInputStage(SDHandlr, dartType, inputDistance, isDistanceInputted);
 
             // Allow sleep even during config if user walks away
-            if (millis() - lastActivityMs > SLEEP_TIMEOUT_MS) {
+            if (millis() - lastActivityMs > SLEEP_TIMEOUT_MS)
+            {
                 enterDeepSleep();
             }
             delay(100);
         }
-        isConfigured  = true;
+        isConfigured = true;
         lastActivityMs = millis();
     }
 
-    //IMU guard
-    if (!M5.Imu.isEnabled()) {
+    // IMU guard
+    if (!M5.Imu.isEnabled())
+    {
         Serial.println("IMU not detected");
         delay(1000);
         return;
@@ -141,19 +145,20 @@ void loop()
     // Active measurement on BtnB
     if (M5.BtnB.isPressed())
     {
-        lastActivityMs = millis();   // user is active, reset timer
+        lastActivityMs = millis(); // user is active, reset timer
 
         imu.update();
         const AccelVector &a = imu.getAccel();
-        if (!tableLoaded) {
+        if (!tableLoaded)
+        {
             float rho = imu.airDensityCalc(imu);
             Serial.printf("rho = %.4f\n", rho);
-            SDHandlr.csvRead(rho);
+            SDHandlr.csvRead(rho,dartType);
             tableLoaded = true;
         }
 
-        float angle    = a.y * 90.0f;
-        //float distance = SDHandlr.lookupDistance(angle, dartType);
+        float angle = a.y * 90.0f;
+        // float distance = SDHandlr.lookupDistance(angle, dartType);
         float gauge = SDHandlr.lookupGauge(angle, inputDistance);
 
         imu.printToSerial();
@@ -165,6 +170,6 @@ void loop()
     // Inactivity , then sleep
     if (millis() - lastActivityMs > SLEEP_TIMEOUT_MS)
     {
-        enterDeepSleep(); 
+        enterDeepSleep();
     }
 }
