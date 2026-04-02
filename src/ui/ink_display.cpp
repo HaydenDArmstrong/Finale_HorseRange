@@ -19,42 +19,30 @@ void InkDisplay::initScreen()
     M5.Display.display();
 }
 
-void InkDisplay::screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle, float dartType, float distance, float gauge)
+void InkDisplay::screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle, float dartType, float distance, float* gauges, float* distances, int count)
 {
-    // primitive distance passed by value
     const AccelVector &a = imu.getAccel();
-    const GyroVector &g = imu.getGyro();
-    const MagVector &m = imu.getMag();
-    Baro baro = imu.getBaro();
-
-    float t = imu.getTemp();
-
     float rho = imu.airDensityCalc(imu);
 
-    // Clear only text area
     M5.Display.clear(WHITE);
     setTextStyle(1);
     M5.Display.setCursor(0, 40);
-    M5.Display.printf("Current Battery Status:\n %d %% %d mV \n", M5.Power.getBatteryLevel(), M5.Power.getBatteryVoltage());
+    M5.Display.printf("Battery: %d%% %dmV\n", M5.Power.getBatteryLevel(), M5.Power.getBatteryVoltage());
     M5.Display.printf("SD Status: %s\n", sdhandle.getSDStatusStr());
-    // M5.Display.println("Current Read:");
-    //  M5.Display.printf("ACC  %.2fX  %.2fY  %.2fZ\n", a.x, a.y, a.z);
-    //  M5.Display.printf("YDEG: %.2F\n", a.y*90);
-    //  M5.Display.printf("GYR  %.2fX  %.2fY %.2f\nZ", g.x, g.y, g.z);
-    //  M5.Display.printf("MAG  %.2fX  %.2fY  %.2f\nZ", m.x, m.y, m.z);
-    //  M5.Display.printf("TMP  %.2f C\n", t);
-    //  M5.Display.printf("ALT  %.1f m  P %.0f Pa\n", baro.altitude, baro.pressure);
+
     setTextStyle(2);
     M5.Display.printf("Air Density: %.3f kg/m^3\n", rho);
+    M5.Display.printf("Angle: %.2f deg\n", angle);
+    M5.Display.printf("Dart: %.2f CC\n", dartType);
+    M5.Display.printf("Distance: %.2f Ft\n", distance);
 
-    // return function result
-    // if we do SDHandler::getSDStatusStr we return the address of the function
-
-    M5.Display.printf("Current Angle  %.2f deg\n", angle);
-    M5.Display.printf("Current dartType %.2f CC\n", dartType);
-    M5.Display.printf("Scope Distance: %.2f Ft\n", distance);
     setTextStyle(4);
-    M5.Display.printf("Gauge: %.2f MPa\n", gauge);
+    // display every valid gauge/distance pair
+    for (int i = 0; i < count; i++)
+    {
+        M5.Display.printf("Gauge: %.2f -> %.2f Ft\n", gauges[i], distances[i]);
+    }
+
     M5.Display.display();
 }
 

@@ -235,41 +235,41 @@ void SDHandler::csvRead(float rho, float dartType)
     _status = SDSTATUS::READING;
 }
 
-float SDHandler::lookupGauge(float angle, float inputDistance)
-{
-    // 1. Find best row matching angle
-    int bestRow = 0;
-    float bestDifference = fabs(_rowHeaders[0] - angle);
-    for (int i = 1; i < _numRows; i++)
-    {
-        float difference = fabs(_rowHeaders[i] - angle);
-        if (difference < bestDifference)
-        {
-            bestDifference = difference;
-            bestRow = i;
-        }
-    }
+// float SDHandler::lookupGauge(float angle, float inputDistance)
+// {
+//     // 1. Find best row matching angle
+//     int bestRow = 0;
+//     float bestDifference = fabs(_rowHeaders[0] - angle);
+//     for (int i = 1; i < _numRows; i++)
+//     {
+//         float difference = fabs(_rowHeaders[i] - angle);
+//         if (difference < bestDifference)
+//         {
+//             bestDifference = difference;
+//             bestRow = i;
+//         }
+//     }
 
-    // 2. Search table values in that row for closest distance
-    int bestCol = 1;
-    bestDifference = fabs(_distTable[bestRow][1] - inputDistance);
-    for (int j = 2; j < _maxCols; j++)
-    {
-        float diff = fabs(_distTable[bestRow][j] - inputDistance);
-        if (diff < bestDifference)
-        {
-            bestDifference = diff;
-            bestCol = j;
-        }
-    }
+//     // 2. Search table values in that row for closest distance
+//     int bestCol = 1;
+//     bestDifference = fabs(_distTable[bestRow][1] - inputDistance);
+//     for (int j = 2; j < _maxCols; j++)
+//     {
+//         float diff = fabs(_distTable[bestRow][j] - inputDistance);
+//         if (diff < bestDifference)
+//         {
+//             bestDifference = diff;
+//             bestCol = j;
+//         }
+//     }
 
-    Serial.printf("Bestcol: %d, column header: %d, bestRow %d", bestCol, _colHeaders[bestCol-1], bestRow);
+//     Serial.printf("Bestcol: %d, column header: %d, bestRow %d", bestCol, _colHeaders[bestCol-1], bestRow);
 
-    // 3. Return the column header (gauge) for that column
-    return _colHeaders[bestCol]; // -1 because colHeaders has no corner offset
-}
+//     // 3. Return the column header (gauge) for that column
+//     return;// -1 because colHeaders has no corner offset
+// }
 // once we store as a 2d array, we can know perform lookup
-float SDHandler::lookupDistance(float angle, float gauge)
+int SDHandler::gaugesPossible(float angle, float* outGauges, float* outDistances, int maxResults)
 {
     Serial.printf("LOOKUp\n");
     int bestRow = 0;
@@ -285,24 +285,20 @@ float SDHandler::lookupDistance(float angle, float gauge)
         }
     }
 
-    int bestCol = 0;
-    bestDifference = fabs(_colHeaders[0] - gauge);
-    bestDifference = fabs(_colHeaders[0] - gauge);
-    for (int j = 1; j < _maxCols; j++)
+    int count = 0;
+    for (int j = 0; j < _maxCols && count < maxResults; j++)
     {
-        float diff = fabs(_colHeaders[j] - gauge);
-        if (diff < bestDifference)
-        {
-            bestDifference = diff;
-            bestCol = j;
-        }
+        int physicalCol = j + 1;
+        float dist = _distTable[bestRow][physicalCol];
+
+        if (dist <= 0.0f) continue; // skip empty cells
+
+        outGauges[count]    = _colHeaders[j];
+        outDistances[count] = dist;
+
+        Serial.printf("  Gauge: %.2f -> Distance: %.2f\n", outGauges[count], outDistances[count]);
+        count++;
     }
 
-    int physicalCol = bestCol + 1;
-    // acounts for top left column corner
-
-    Serial.printf("BestRow %d", bestRow);
-    Serial.printf("BestCol %d", physicalCol);
-
-    return _distTable[bestRow][physicalCol];
+    return count;
 }

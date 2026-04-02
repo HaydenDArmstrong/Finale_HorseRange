@@ -24,9 +24,9 @@ public:
     } // getter returning current status
     char *getSDStatusStr();
 
-    float lookupDistance(float angle, float mass);
+    // float lookupDistance(float angle, float mass);
 
-    float lookupGauge(float angle, float inputDistance);
+    int gaugesPossible(float angle, float* outGauges, float* outDistances, int maxResults);
 
 private:
     void buildCSVFilename(float rho, float dartType,  char *bufOutput, size_t bufSize);

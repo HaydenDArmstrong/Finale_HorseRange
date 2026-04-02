@@ -159,10 +159,12 @@ void loop()
 
         float angle = a.y * 90.0f;
         // float distance = SDHandlr.lookupDistance(angle, dartType);
-        float gauge = SDHandlr.lookupGauge(angle, inputDistance);
-
+        float gauges[16];
+        float distances[16];
+        int found = SDHandlr.gaugesPossible(angle, gauges, distances, 16);
+        
         imu.printToSerial();
-        display.screenRefresh(imu, SDHandlr, angle, dartType, inputDistance, gauge);
+        display.screenRefresh(imu, SDHandlr, angle, dartType, inputDistance, gauges, distances, found);
         display.drawAngle(imu);
         delay(500);
     }
