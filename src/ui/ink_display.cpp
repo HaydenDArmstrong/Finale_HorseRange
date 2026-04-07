@@ -21,31 +21,46 @@ void InkDisplay::initScreen()
 
 void InkDisplay::screenRefresh(IMUSensor &imu, SDHandler &sdhandle, float angle, float dartType, float distance, float* gauges, float* distances, int count)
 {
-    const AccelVector &a = imu.getAccel();
     float rho = imu.airDensityCalc(imu);
 
     M5.Display.clear(WHITE);
     setTextStyle(1);
-    M5.Display.setCursor(0, 40);
-    M5.Display.printf("Battery: %d%% %dmV\n", M5.Power.getBatteryLevel(), M5.Power.getBatteryVoltage());
-    M5.Display.printf("SD Status: %s\n", sdhandle.getSDStatusStr());
-
-    setTextStyle(2);
-    M5.Display.printf("Air Density: %.3f kg/m^3\n", rho);
-    M5.Display.printf("Angle: %.2f deg\n", angle);
-    M5.Display.printf("Dart: %.2f CC\n", dartType);
+    M5.Display.setCursor(0, 0);
+    M5.Display.printf("Battery: %d%%  SD: %s\n", M5.Power.getBatteryLevel(), sdhandle.getSDStatusStr());
+    M5.Display.printf("Density: %.3f kg/m^3\n", rho);
+    M5.Display.printf("Angle: %.2f deg  Dart: %.2fCC\n", angle, dartType);
     M5.Display.printf("Distance: %.2f Ft\n", distance);
 
-    setTextStyle(4);
-    // display every valid gauge/distance pair
+    // --- Table layout ---
+    int tableX     = 0;
+    int tableY     = 80;  // start below the info text
+    int colWidth   = 120;
+    int rowHeight  = 20;
+    int cols       = 2;
+    int rows       = count + 1; // +1 for header row
+
+    // Draw header background
+    M5.Display.fillRect(tableX, tableY, colWidth * cols, rowHeight, BLACK);
+
+    // Header text
+    M5.Display.setTextColor(WHITE);
+    setTextStyle(3);
+    M5.Display.printf("Gauge (MPa)");
+    M5.Display.printf("Distance (Ft)");
+    M5.Display.setTextColor(BLACK);
+
+    // Draw each data row
     for (int i = 0; i < count; i++)
     {
-        M5.Display.printf("Gauge: %.2f -> %.2f Ft\n", gauges[i], distances[i]);
+        // Cell text;
+        M5.Display.printf("%.2f", gauges[i]);
+        M5.Display.printf("%.2f", distances[i]);
+
     }
+
 
     M5.Display.display();
 }
-
 #include <math.h> // for atan2, sqrt, sin, cos
 
 void InkDisplay::drawAngle(IMUSensor &imu)

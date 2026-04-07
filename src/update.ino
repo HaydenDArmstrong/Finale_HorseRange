@@ -1,0 +1,68 @@
+#include "BluetoothSerial.h"
+#include <Adafruit_LIS3DH.h>
+#include <Adafruit_Sensor.h>
+
+Adafruit_LIS3DH lis = Adafruit_LIS3DH();
+BluetoothSerial SerialBT;
+float pitch_offset = 0; // calibration offset
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22);
+
+  // Start Bluetooth in server mode (default)
+  SerialBT.begin("ESP32_protoAngle");
+  Serial.println("Bluetooth sender ready...");
+
+  // Initialize LIS3DH
+  if (!lis.begin(0x18)) {
+    Serial.println("Could not start LIS3DH");
+    while (1);
+  }
+  lis.setRange(LIS3DH_RANGE_2_G);
+
+  // --- CALIBRATION ---
+  Serial.println("Calibrating... keep level");
+  float sum = 0;
+  int samples = 50;
+
+  for (int i = 0; i < samples; i++) {
+    lis.read();
+    float x = lis.x / 1000.0;
+    float y = lis.y / 1000.0;
+    float z = lis.z / 1000.0;
+
+    float pitch = atan2(x, sqrt(y*y + z*z)) * 180.0 / PI;
+    sum += pitch;
+    delay(20);
+  }
+
+  pitch_offset = sum / samples;
+  Serial.print("Offset: ");
+  Serial.println(pitch_offset);
+  Serial.println("Sender ready. Sending pitch via Bluetooth...");
+}
+
+void loop() {
+  lis.read();
+  float x = lis.x / 1000.0;
+  float y = lis.y / 1000.0;
+  float z = lis.z / 1000.0;
+
+  // Calculate pitch angle
+  float pitch = atan2(x, sqrt(y*y + z*z)) * 180.0 / PI;
+
+  // Apply calibration
+  pitch -= pitch_offset;
+
+  // --- SEND AS A SIMPLE NUMBER ---
+  if (SerialBT.hasClient()) {        // Only send if a client is connected
+      SerialBT.print(pitch, 2);     // send value with 2 decimal places
+      SerialBT.print('\n');          // newline is important for receiver
+  }
+
+  // Debug on Serial Monitor
+  Serial.println(pitch, 2);
+
+  delay(200);
+}
