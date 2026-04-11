@@ -2,42 +2,101 @@
 #include "sensors/imu_sensor.hpp"
 #include "ui/ink_display.hpp"
 #include "utility/sdhandler.hpp"
-#include "sensors/ble_angle.hpp" // Ensure this contains the BluetoothSerial logic
+#include "sensors/ble_angle.hpp"
 #include "esp_sleep.h"
 
-// GPIO 37 = BtnA, 38 = BtnB, 39 = BtnC
+// ============================================================
+// CONFIG
+// ============================================================
+
 #define WAKE_BTN_GPIO GPIO_NUM_38
-#define WAKE_BTN_LEVEL 0 // buttons are active-LOW
+#define WAKE_BTN_LEVEL 0
 
-// RTC_DATA_ATTR: survives deep sleep
-RTC_DATA_ATTR static bool isConfigured = false;
-RTC_DATA_ATTR static bool tableLoaded = false;
+enum class SystemState {
+    CONFIG = 0,
+    RUNNING = 1
+};
+
+static constexpr uint32_t SLEEP_TIMEOUT_MS = 90000;
+static constexpr uint32_t ANGLE_STALE_THRESHOLD_MS = 5000;
+
+// ============================================================
+// RTC MEMORY
+// ============================================================
+
+RTC_DATA_ATTR static GunType gunType = GunType::G2;
 RTC_DATA_ATTR static float dartType = 2.0f;
-RTC_DATA_ATTR static float inputDistance = 0.0f;
-RTC_DATA_ATTR static bool isDistanceInputted = false;
+RTC_DATA_ATTR static SystemState systemState = SystemState::CONFIG;
+RTC_DATA_ATTR static bool configurationComplete = false;
 
-static const uint32_t SLEEP_TIMEOUT_MS = 90000; 
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+
 static uint32_t lastActivityMs = 0;
+static uint32_t lastAngleUpdateMs = 0;
+static float lastValidAngle = 0.0f;
+static bool csvTableLoaded = false;
+static float cachedAirDensity = 0.0f;
 
-// System objects
+// ============================================================
+// OBJECTS
+// ============================================================
+
 IMUSensor imu;
 InkDisplay display;
-SDHandler SDHandlr;
-BLEAngleReceiver bleAngle; // The Bluetooth Serial object
+SDHandler sdHandler;
+BLEAngleReceiver bleAngle;
 
-void enterDeepSleep()
-{
-    Serial.println("Entering deep sleep — press BtnB to wake");
+// ============================================================
+// HELPERS
+// ============================================================
+
+void enterDeepSleep() {
+    Serial.println("[INFO] Entering deep sleep...");
     Serial.flush();
     esp_sleep_enable_ext0_wakeup(WAKE_BTN_GPIO, WAKE_BTN_LEVEL);
     esp_deep_sleep_start();
 }
 
-void setup()
-{
+float getAngleSafe() {
+    if (!bleAngle.isConnected()) {
+        Serial.printf("[DEBUG] BLE not connected, using last angle: %.1f\n", lastValidAngle);
+        return lastValidAngle;
+    }
+
+    float angle = bleAngle.getAngle();
+
+    if (angle < 0.0f || angle > 90.0f) {
+        Serial.printf("[ERROR] Invalid angle: %.1f\n", angle);
+        return lastValidAngle;
+    }
+
+    lastValidAngle = angle;
+    lastAngleUpdateMs = millis();
+
+    return angle;
+}
+
+bool isAngleReadingStale() {
+    return (millis() - lastAngleUpdateMs) > ANGLE_STALE_THRESHOLD_MS;
+}
+
+float loadAndCacheAirDensity() {
+    cachedAirDensity = imu.airDensityCalc();
+    Serial.printf("[DEBUG] Air density: %.3f kg/m3\n", cachedAirDensity);
+    return cachedAirDensity;
+}
+
+// ============================================================
+// SETUP
+// ============================================================
+
+void setup() {
     Serial.begin(115200);
     delay(1000);
-    Serial.println("=== BOOT START ===");
+
+    Serial.println("=== SYSTEM BOOT START ===");
 
     auto cfg = M5.config();
     cfg.serial_baudrate = 115200;
@@ -45,90 +104,122 @@ void setup()
     cfg.internal_imu = false;
     M5.begin(cfg);
 
-    // Check wakeup reason
-    esp_sleep_wakeup_cause_t reason = esp_sleep_get_wakeup_cause();
-    if (reason == ESP_SLEEP_WAKEUP_EXT0) {
-        Serial.println("WAKE: button press");
-    }
+    auto wakeReason = esp_sleep_get_wakeup_cause();
+    if (wakeReason == ESP_SLEEP_WAKEUP_EXT0)
+        Serial.println("[INFO] Wake from deep sleep");
+    else
+        Serial.println("[INFO] Cold boot");
 
-    // Init Sensors & Display
-    imu.init();
-    if (!isConfigured) {
-        imu.Calib();
-        isConfigured = true; // Mark as calibrated for next wake
+    Serial.println("[INFO] Initializing IMU...");
+    if (imu.init() != IMUInitStatus::SUCCESS) {
+        Serial.println("[ERROR] IMU init failed");
     }
 
     display.initScreen();
-    SDHandlr.initSDCard();
+    sdHandler.initSDCard();
+    imu.Calib();
 
-    // Start Bluetooth Connection
-    Serial.println("Bluetooth init...");
-    bleAngle.init(); 
+    Serial.println("[INFO] Starting BLE...");
+    bleAngle.init();
 
-    if (tableLoaded) {
-        SDHandlr.csvRead(imu.airDensityCalc(imu), dartType);
+    if (configurationComplete && !csvTableLoaded) {
+        loadAndCacheAirDensity();
+
+        if (sdHandler.csvRead(cachedAirDensity, dartType)) {
+            csvTableLoaded = true;
+            Serial.println("[INFO] CSV loaded");
+        } else {
+            Serial.println("[ERROR] CSV load failed");
+        }
     }
 
     lastActivityMs = millis();
-    Serial.println("SETUP DONE");
+    Serial.println("=== BOOT COMPLETE ===");
 }
 
-void loop()
-{
-    M5.update();
-    
-    // Maintain Bluetooth connection and parse incoming strings
-    bleAngle.tick(); 
+// ============================================================
+// CONFIG STATE
+// ============================================================
 
-    // Guard: Ensure the BMP280 is alive for air density
+void handleConfigurationState() {
+    display.userInputStage(sdHandler, dartType, gunType, configurationComplete);
+
+    if (configurationComplete) {
+        systemState = SystemState::RUNNING;
+        csvTableLoaded = false;
+        lastActivityMs = millis();
+
+        Serial.println("[INFO] Config complete → RUNNING");
+        Serial.printf("[DEBUG] Dart=%.1f Gun=%d\n",
+            dartType, (int)gunType);
+    }
+}
+
+// ============================================================
+// RUN STATE
+// ============================================================
+
+void handleRunningState() {
+    if (!M5.BtnB.isPressed()) return;
+
+    lastActivityMs = millis();
+
+    if (!csvTableLoaded) {
+        loadAndCacheAirDensity();
+
+        if (!sdHandler.csvRead(cachedAirDensity, dartType)) {
+            Serial.println("[ERROR] CSV load failed");
+            display.showError("CSV failed");
+            return;
+        }
+
+        csvTableLoaded = true;
+        Serial.println("[INFO] CSV loaded");
+    }
+
+    float angle = getAngleSafe();
+
+    if (isAngleReadingStale()) {
+        Serial.println("[WARNING Angle stale");
+        //display.showWarning("Angle stale");
+    }
+
+    float gauges[16];
+    float distances[16];
+
+    int count = sdHandler.gaugesPossible(angle, gauges, distances, 16);
+
+    Serial.printf("[DEBUG] Found %d entries for %.2f deg\n", count, angle);
+
+    display.screenRefresh(imu, sdHandler, angle, dartType, gauges, distances, count);
+
+    delay(500);
+}
+
+// ============================================================
+// LOOP
+// ============================================================
+
+void loop() {
+    M5.update();
+    bleAngle.tick();
+
+    
+
     if (!M5.Imu.isEnabled()) {
-        Serial.println("IMU (BMP280) not detected");
+        Serial.println("[ERROR] IMU missing");
         delay(1000);
         return;
     }
 
-    // Trigger calculation and display update on Button B
-    if (M5.BtnB.isPressed())
-    {
-        lastActivityMs = millis();
-
-        // Verify Bluetooth connection before proceeding
-        if (!bleAngle.isConnected())
-        {
-            Serial.println("Bluetooth not connected — looking for sender...");
-            // Optional: display.drawError("No BT Connection");
-            delay(500);
-            return;
-        }
-
-        // Get the angle received via Bluetooth Serial
-        float angle = bleAngle.getAngle(); 
-
-        // Load CSV if not done yet
-        if (!tableLoaded)
-        {
-            float rho = imu.airDensityCalc(imu); 
-            SDHandlr.csvRead(rho, dartType);
-            tableLoaded = true;
-        }
-
-        // Logic for ballistic calculations
-        float gauges[16];
-        float distances[16];
-        int found = SDHandlr.gaugesPossible(angle, gauges, distances, 16);
-
-        Serial.printf("[ANGLE from BT] %.2f°\n", angle);
-
-        // Update the E-Ink Display
-        display.screenRefresh(imu, SDHandlr, angle, dartType, inputDistance,
-                              gauges, distances, found);
-        
-        delay(500); // Debounce/throttle
+    if (systemState == SystemState::CONFIG) {
+        handleConfigurationState();
+    } else {
+        handleRunningState();
     }
 
-    // Sleep Timer
-    if (millis() - lastActivityMs > SLEEP_TIMEOUT_MS)
-    {
+    if (millis() - lastActivityMs > SLEEP_TIMEOUT_MS) {
+        Serial.println("[INFO] Sleep timeout");
         enterDeepSleep();
     }
 }

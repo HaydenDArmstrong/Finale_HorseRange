@@ -2,303 +2,353 @@
 #include <string.h>
 #include <M5Unified.h>
 
+// ============================================================
+// SPI PIN DEFINITIONS
+// ============================================================
+
 #define SD_SPI_SCK_PIN 14
 #define SD_SPI_MISO_PIN 13
 #define SD_SPI_MOSI_PIN 12
 #define SD_SPI_CS_PIN 4
 
-void SDHandler::initSDCard()
-{
+// ============================================================
+// INITIALIZATION
+// ============================================================
 
-    SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN); // init SPI with custom pins before SD
+void SDHandler::initSDCard() {
+    // Initialize SPI with custom pins before SD
+    SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
 
-    if (!SD.begin(SD_SPI_CS_PIN, SPI, 25000000))
-    {
-        Serial.println("SD CARD NOT DETECTED"); // fixed: was printing DETECTED on failure
-        // M5.Display.print("SD CARD NOT DETECTED");
+    // Attempt to mount SD card
+    if (!SD.begin(SD_SPI_CS_PIN, SPI, 25000000)) {
+        Serial.println("[SD] ERROR: SD card not detected!");
         _status = SDSTATUS::UNDETECTED;
-        while (1)
-            ;
-    }
-    else
-    {
-        Serial.println("SD CARD DETECTED");
-        // M5.Display.print("SD CARD DETECTED");
-        _status = SDSTATUS::IDLE;
+        return;
     }
 
-    Serial.println("Write Test");
-    auto writeFile = SD.open("/WriteTest.txt", FILE_WRITE, true);
-    if (writeFile)
-    {
-        writeFile.print("Hello... SD CARD WRITE SUCCESS!\n");
+    Serial.println("[SD] SD card detected");
+    _status = SDSTATUS::IDLE;
+
+    // === DIAGNOSTIC WRITE TEST ===
+    Serial.println("[SD] Running write test...");
+    File writeFile = SD.open("/WriteTest.txt", FILE_WRITE, true);
+    if (writeFile) {
+        writeFile.print("SD card write test successful.\n");
         writeFile.close();
-        Serial.println("Write Success");
-        // technically true _status = SDSTATUS::IDLE;
-        _status = SDSTATUS::WRITING;
-    }
-    else
-    {
-        Serial.println("write Fail");
+        Serial.println("[SD] Write test passed");
+    } else {
+        Serial.println("[SD] Write test failed");
         _status = SDSTATUS::ERROR;
+        return;
     }
-    delay(100);
 
-    Serial.println("Read Test");
-    auto readFile = SD.open("/WriteTest.txt", FILE_READ, false);
-    if (readFile)
-    {
-        Serial.println("READ file Detected");
+    // === DIAGNOSTIC READ TEST ===
+    Serial.println("[SD] Running read test...");
+    File readFile = SD.open("/WriteTest.txt", FILE_READ);
+    if (readFile) {
+        Serial.println("[SD] Read test passed");
         readFile.close();
-        // _status = SDSTATUS::IDLE;
-        _status = SDSTATUS::READING;
-    }
-    else
-    {
-        Serial.println("READ file NOT Detected");
+    } else {
+        Serial.println("[SD] Read test failed");
         _status = SDSTATUS::ERROR;
+        return;
     }
 
-    _status = SDSTATUS::IDLE; // init complete, return to idle regardless of test results
+    _status = SDSTATUS::IDLE;
+    Serial.println("[SD] Initialization complete");
 }
 
-char *SDHandler::getSDStatusStr()
-{                    // const: string literals are read-only
-    switch (_status) // depending on current enum
-    {
-    case SDSTATUS::UNDETECTED:
-        return "UNDETECTED";
-    case SDSTATUS::IDLE:
-        return "IDLE";
-    case SDSTATUS::READING:
-        return "READING";
-    case SDSTATUS::WRITING:
-        return "WRITING";
-    case SDSTATUS::ERROR:
-        return "ERROR";
-    default:
-        return "UNKNOWN";
-    }
-}
+// ============================================================
+// STATUS METHODS
+// ============================================================
 
-void SDHandler::buildCSVFilename(float rho, float dartType, char *bufOutput, size_t bufSize)
-{
-    Serial.printf("Building FILENAME\n");
-    float roundedVal = round(rho / 0.05f) * 0.05f; // rounds to 0.05
-
-    int intPart = (int)roundedVal;
-    int decPart = round((roundedVal - intPart) * 100);
-
-    //Based off of google sheet given filenames
-
-    if (dartType == 0.5)
-    { //IF 0.5CC dart is used. For now we just go from 1.0 estimate
-        snprintf(bufOutput, bufSize, "/Target Book G2 practice 1cc - rho-%d.%02d.csv", intPart, decPart);
-    }
-    if (dartType == 1.5)
-    { //IF 0.5CC dart is used. For now we just go for 2.0 estimate
-        snprintf(bufOutput, bufSize, "/Target Book G2 practice 1cc - rho-%d.%02d.csv", intPart, decPart);  
-    }
-
-    if (dartType == 1.0)
-    { //TODO: Repleace with real instead of practice when propre sheet is developed.
-    snprintf(bufOutput, bufSize, "/Target Book G2 real2cc - rho-%d.%02d.csv", intPart, decPart);
-    }
-    if (dartType == 2.0)
-    {
-      snprintf(bufOutput, bufSize, "/Target Book G2 real2cc - rho-%d.%02d.csv", intPart, decPart);  
+const char* SDHandler::getSDStatusStr() const {
+    switch (_status) {
+        case SDSTATUS::UNDETECTED:  return "UNDETECTED";
+        case SDSTATUS::IDLE:        return "IDLE";
+        case SDSTATUS::READING:     return "READING";
+        case SDSTATUS::WRITING:     return "WRITING";
+        case SDSTATUS::ERROR:       return "ERROR";
+        default:                    return "UNKNOWN";
     }
 }
 
-void SDHandler::csvRead(float rho, float dartType)
-{
-    char airFileName[64] = {0};
-    buildCSVFilename(rho, dartType, airFileName, sizeof(airFileName));
-    Serial.println(airFileName);
+// ============================================================
+// CSV FILENAME GENERATION
+// ============================================================
 
-    // reset state so re-calling with new rho starts clean
+void SDHandler::buildCSVFilename(float rho, DartType dartType, char* bufOutput, size_t bufSize) const {
+    // Round air density to nearest 0.05 kg/m³
+    float roundedRho = round(rho / 0.05f) * 0.05f;
+
+    int intPart = (int)roundedRho;
+    int decPart = round((roundedRho - intPart) * 100);
+
+    // Select filename based on dart type
+    // Note: dart types 1.5 and 2.0 currently map to same file (both are 2cc estimates)
+    const char* filenamePattern = nullptr;
+
+    switch (dartType) {
+        case DartType::DART_1CC:
+            // 1cc darts use "real2cc" table
+            filenamePattern = "/Target Book G2 real2cc - rho-%d.%02d.csv";
+            break;
+
+        case DartType::DART_1_5CC:
+            // 1.5cc darts estimated as 2.0cc
+            filenamePattern = "/Target Book G2 practice1cc - rho-%d.%02d.csv";
+            break;
+
+        case DartType::DART_2CC:
+            // 2cc darts use real tables
+            filenamePattern = "/Target Book G2 real2cc - rho-%d.%02d.csv";
+            break;
+
+        default:
+            Serial.printf("[SD] ERROR: Unknown dart type %d\n", static_cast<int>(dartType));
+            snprintf(bufOutput, bufSize, "/UNKNOWN_rho-%d.%02d.csv", intPart, decPart);
+            return;
+    }
+
+    snprintf(bufOutput, bufSize, filenamePattern, intPart, decPart);
+    Serial.printf("[SD] Generated filename: %s\n", bufOutput);
+}
+
+// ============================================================
+// CSV READING & PARSING
+// ============================================================
+
+bool SDHandler::csvRead(float rho, DartType dartType) {
+    // Reset internal state for fresh parse
+    resetTableData();
+
+    // Build and attempt to open CSV file
+    char csvFilename[96] = {0};
+    buildCSVFilename(rho, dartType, csvFilename, sizeof(csvFilename));
+
+    Serial.printf("[SD] Attempting to open: %s\n", csvFilename);
+    File readFile = SD.open(csvFilename, FILE_READ);
+
+    if (!readFile) {
+        Serial.printf("[SD ERROR] File not found: %s\n", csvFilename);
+        _status = SDSTATUS::ERROR;
+        return false;
+    }
+
+    Serial.println("[SD] File opened, starting parse...");
+    _status = SDSTATUS::READING;
+
+    // ========== CSV PARSING LOGIC ==========
+    // Format: comma-separated values, newline-separated rows
+    // Row 0: column headers (gauge pressures)
+    // Col 0: row headers (angles)
+    // Data: distance values
+
+    int bufIdx = 0;
+    char buffer[16] = {0};
+    char c;
+    float parsedValue;
+    bool parseError = false;
+
+    while (readFile.available() && !parseError) {
+        c = readFile.read();
+
+        // Skip non-ASCII encoding (bytes > 127)
+        if ((unsigned char)c > 127) {
+            continue;
+        }
+
+        // Skip carriage returns (Windows line endings)
+        if (c == '\r') {
+            continue;
+        }
+
+        // Cell delimiter (comma) or row delimiter (newline)
+        if (c == ',' || c == '\n') {
+            if (bufIdx > 0) {
+                buffer[bufIdx] = '\0';
+
+                // Parse the cell value
+                if (!parseFloatFromBuffer(buffer, parsedValue)) {
+                    Serial.printf("[SD] Parse error at row %d, col %d: '%s'\n", 
+                                  _numRows, _numCols, buffer);
+                    parseError = true;
+                    break;
+                }
+
+                // Store value in appropriate location
+                if (_numRows == 0) {
+                    // Header row - store column gauge values
+                    if (_numCols >= MAX_COLS) {
+                        Serial.printf("[SD] ERROR: Too many columns (%d > %d)\n", _numCols, MAX_COLS);
+                        parseError = true;
+                        break;
+                    }
+                    _colHeaders[_numCols++] = parsedValue;
+                } else if (_numCols == 0) {
+                    // First column - store row angle value
+                    if (_numRows >= MAX_ROWS) {
+                        Serial.printf("[SD] ERROR: Too many rows (%d > %d)\n", _numRows, MAX_ROWS);
+                        parseError = true;
+                        break;
+                    }
+                    _rowHeaders[_numRows] = parsedValue;
+                    _numCols++;
+                } else {
+                    // Data cell
+                    _distTable[_numRows][_numCols++] = parsedValue;
+                }
+
+                bufIdx = 0;
+                memset(buffer, 0, sizeof(buffer));
+            }
+
+            // End of row
+            if (c == '\n') {
+                if (_numCols > _maxCols) {
+                    _maxCols = _numCols;
+                }
+                _numRows++;
+                _numCols = 0;
+            }
+        } else {
+            // Regular character - add to buffer
+            if (bufIdx < (int)sizeof(buffer) - 1) {
+                buffer[bufIdx++] = c;
+            }
+        }
+    }
+
+    // Flush last cell if file doesn't end with newline
+    if (bufIdx > 0 && !parseError) {
+        buffer[bufIdx] = '\0';
+        if (parseFloatFromBuffer(buffer, parsedValue)) {
+            if (_numRows == 0) {
+                _colHeaders[_numCols] = parsedValue;
+            } else if (_numCols == 0) {
+                _rowHeaders[_numRows] = parsedValue;
+            } else {
+                _distTable[_numRows][_numCols] = parsedValue;
+            }
+        }
+    }
+
+    readFile.close();
+
+    if (parseError) {
+        Serial.println("[SD] Parse error encountered!");
+        _status = SDSTATUS::ERROR;
+        return false;
+    }
+
+    if (!hasValidData()) {
+        Serial.println("[SD] ERROR: No valid data parsed from CSV");
+        _status = SDSTATUS::ERROR;
+        return false;
+    }
+
+    _status = SDSTATUS::IDLE;
+    printTableStats();
+    return true;
+}
+
+// ============================================================
+// BALLISTICS LOOKUP
+// ============================================================
+
+int SDHandler::gaugesPossible(float angle, float* outGauges, float* outDistances, int maxResults) {
+    // Validate inputs
+    if (!outGauges || !outDistances || maxResults < 1) {
+        Serial.println("[SD] ERROR: Invalid parameters to gaugesPossible()");
+        return 0;
+    }
+
+    if (!hasValidData()) {
+        Serial.println("[SD] ERROR: No CSV data loaded!");
+        return 0;
+    }
+
+    // Find the row with the closest matching angle
+    int bestRow = 1;  // Start at row 1 (skip header row 0)
+    float bestDifference = fabsf(_rowHeaders[1] - angle);
+
+    for (int i = 2; i < _numRows; i++) {
+        float difference = fabsf(_rowHeaders[i] - angle);
+        if (difference < bestDifference) {
+            bestDifference = difference;
+            bestRow = i;
+        }
+    }
+
+    Serial.printf("[SD] Found best row %d for angle %.2f° (delta=%.2f°)\n",
+                  bestRow, _rowHeaders[bestRow], bestDifference);
+
+    // Extract all valid gauge/distance pairs from this row
+    int count = 0;
+    for (int j = 0; j < _maxCols && count < maxResults; j++) {
+        float dist = _distTable[bestRow][j];
+        float gauge = _colHeaders[j];
+
+        // Skip invalid/empty cells (distance <= 0)
+        if (dist <= 0.0f) {
+            continue;
+        }
+
+        outGauges[count] = gauge;
+        outDistances[count] = dist;
+        count++;
+
+        Serial.printf("[SD]   [%d] Gauge=%.2f MPa, Distance=%.2f Ft\n", 
+                      j, gauge, dist);
+    }
+
+    Serial.printf("[SD] Found %d valid gauge/distance pairs\n", count);
+    return count;
+}
+
+// ============================================================
+// HELPER METHODS
+// ============================================================
+
+bool SDHandler::parseFloatFromBuffer(const char* buffer, float& outValue) const {
+    // Use sscanf to parse float - stops at non-numeric characters
+    // E.g., "30ft" → 30.0, "25.5" → 25.5, "invalid" → 0.0
+    int result = sscanf(buffer, "%f", &outValue);
+    return result == 1;
+}
+
+void SDHandler::resetTableData() {
     _numRows = 0;
     _numCols = 0;
     _maxCols = 0;
     memset(_colHeaders, 0, sizeof(_colHeaders));
     memset(_rowHeaders, 0, sizeof(_rowHeaders));
     memset(_distTable, 0, sizeof(_distTable));
+}
 
-    auto readFile = SD.open(airFileName, FILE_READ, false);
+bool SDHandler::hasValidData() const {
+    return (_numRows > 1) && (_maxCols > 1);
+}
 
-    if (!readFile)
-    {
-        Serial.println("READ file NOT Detected");
-        M5.Display.printf("FILE NOT FOUND");
-        _status = SDSTATUS::ERROR;
+void SDHandler::printTableStats() const {
+    if (!hasValidData()) {
+        Serial.println("[SD] No valid table data to display");
         return;
     }
 
-    int bufIdx = 0;
-    char buff[16] = {0};
-    char c;
-    float val;
+    Serial.printf("[SD] Parsed table: %d rows × %d cols\n", _numRows, _maxCols);
 
-    while (readFile.available())
-    {
-        c = readFile.read();
-
-        // skip non-ASCII encoding garbage (Â°, Ï etc.)
-        // these are bytes > 127, plain text is always <= 127
-        if ((unsigned char)c > 127)
-            continue;
-
-        // skip carriage return (windows line endings produce \r\n)
-        if (c == '\r')
-            continue;
-
-        if (c == ',' || c == '\n')
-        {
-            // only store if buffer has something — empty cell means skip
-            if (bufIdx > 0)
-            {
-                buff[bufIdx] = '\0';      // NEED Null terminate here
-                sscanf(buff, "%f", &val); // sscanf stops at letters, so "30ft" → 30.0
-
-                if (_numRows == 0)
-                {
-                    _colHeaders[_numCols++] = val;
-                }
-                else if (_numCols == 0)
-                {
-                    _rowHeaders[_numRows] = val;
-                    _numCols++;
-                }
-                else
-                {
-                    _distTable[_numRows][_numCols++] = val;
-                }
-
-                bufIdx = 0;
-                memset(buff, 0, sizeof(buff));
-            }
-
-            if (c == '\n')
-            {
-                if (_numCols > _maxCols)
-                    _maxCols = _numCols;
-
-                Serial.printf("  EOL: _numCols=%d _maxCols=%d\n", _numCols, _maxCols);
-
-                _numRows++;
-                _numCols = 0;
-            }
-        }
-        else
-        {
-            if (bufIdx < 15)
-                buff[bufIdx++] = c;
-        }
+    Serial.print("[SD] Gauges (MPa): ");
+    for (int i = 0; i < _maxCols && i < 10; i++) {
+        Serial.printf("%.1f ", _colHeaders[i]);
     }
+    if (_maxCols > 10) Serial.print("...");
+    Serial.println();
 
-    // flush last cell — file may not end with \n
-    if (bufIdx > 0)
-    {
-        sscanf(buff, "%f", &val);
-        if (_numRows == 0)
-        {
-            _colHeaders[_numCols] = val;
-        }
-        else if (_numCols == 0)
-        {
-            _rowHeaders[_numRows] = val;
-        }
-        else
-        {
-            _distTable[_numRows][_numCols] = val;
-        }
+    Serial.print("[SD] Angles (deg): ");
+    for (int i = 1; i < _numRows && i < 10; i++) {
+        Serial.printf("%.1f ", _rowHeaders[i]);
     }
-    float currentVal;
-    int j = 0;
-    // debug: confirm parse results
-    Serial.printf("Parsed %d rows, %d cols\n", _numRows, _maxCols);
-    for (int i = 0; i < _maxCols; i++)
-        Serial.printf("  colHeader[%d] = %.2f\n", i, _colHeaders[i]);
-    for (int i = 0; i < _numRows; i++)
-        Serial.printf("  rowHeader[%d] = %.2f\n", i, _rowHeaders[i]);
-    for (int i = 0; i < _numRows; i++)
-    {
-        for (j = 0; j < _maxCols; j++)
-        {
-            currentVal = _distTable[i][j];
-            Serial.printf("[%d,%d]: %.2f", i, j, currentVal);
-        }
-        Serial.println();
-    }
-
-    readFile.close();
-    _status = SDSTATUS::READING;
-}
-
-// float SDHandler::lookupGauge(float angle, float inputDistance)
-// {
-//     // 1. Find best row matching angle
-//     int bestRow = 0;
-//     float bestDifference = fabs(_rowHeaders[0] - angle);
-//     for (int i = 1; i < _numRows; i++)
-//     {
-//         float difference = fabs(_rowHeaders[i] - angle);
-//         if (difference < bestDifference)
-//         {
-//             bestDifference = difference;
-//             bestRow = i;
-//         }
-//     }
-
-//     // 2. Search table values in that row for closest distance
-//     int bestCol = 1;
-//     bestDifference = fabs(_distTable[bestRow][1] - inputDistance);
-//     for (int j = 2; j < _maxCols; j++)
-//     {
-//         float diff = fabs(_distTable[bestRow][j] - inputDistance);
-//         if (diff < bestDifference)
-//         {
-//             bestDifference = diff;
-//             bestCol = j;
-//         }
-//     }
-
-//     Serial.printf("Bestcol: %d, column header: %d, bestRow %d", bestCol, _colHeaders[bestCol-1], bestRow);
-
-//     // 3. Return the column header (gauge) for that column
-//     return;// -1 because colHeaders has no corner offset
-// }
-// once we store as a 2d array, we can know perform lookup
-int SDHandler::gaugesPossible(float angle, float* outGauges, float* outDistances, int maxResults)
-{
-    Serial.printf("LOOKUp\n");
-    int bestRow = 0;
-    float bestDifference = fabs(_rowHeaders[0] - angle);
-
-    for (int i = 1; i < _numRows; i++)
-    {
-        float difference = fabs(_rowHeaders[i] - angle);
-        if (difference < bestDifference)
-        {
-            bestDifference = difference;
-            bestRow = i;
-        }
-    }
-
-    int count = 0;
-    for (int j = 0; j < _maxCols && count < maxResults; j++)
-    {
-        int physicalCol = j + 1;
-        float dist = _distTable[bestRow][physicalCol];
-
-        if (dist <= 0.0f) continue; // skip empty cells
-
-        outGauges[count]    = _colHeaders[j];
-        outDistances[count] = dist;
-
-        Serial.printf("  Gauge: %.2f -> Distance: %.2f\n", outGauges[count], outDistances[count]);
-        count++;
-    }
-
-    return count;
+    if (_numRows > 10) Serial.print("...");
+    Serial.println();
 }

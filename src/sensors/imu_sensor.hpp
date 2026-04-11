@@ -1,57 +1,85 @@
 #pragma once
-#include <M5UnitENV.h> // this defines BMP280 class
+#include <M5UnitENV.h> // Defines BMP280 class
 
-struct Baro
-{
-    float pressure;
-    float cTemp;
-    float altitude;
+// ============================================================
+// DATA STRUCTURES
+// ============================================================
+
+struct Baro {
+    float pressure;  // Pa (Pascal)
+    float cTemp;     // °C (Celsius)
+    float altitude;  // m (meters)
 };
 
-struct AccelVector
-{
-    // accelerometer vector
-    float x;
-    float y;
-    float z;
+struct AccelVector {
+    float x, y, z;   // m/s² (acceleration)
 };
-struct GyroVector
-{
-    // gyro vector
-    float x;
-    float y;
-    float z;
+
+struct GyroVector {
+    float x, y, z;   // rad/s (angular velocity)
 };
-struct MagVector
-{
-    // magnetomter vector
-    float x;
-    float y;
-    float z;
+
+struct MagVector {
+    float x, y, z;   // μT (microtesla) - magnetic field
 };
-class IMUSensor
-{
+
+// ============================================================
+// INITIALIZATION STATUS
+// ============================================================
+
+enum class IMUInitStatus {
+    SUCCESS = 0,
+    BMP280_NOT_FOUND = 1,
+    INVALID_STATE = 2,
+    UNKNOWN_ERROR = 3
+};
+
+// ============================================================
+// IMU SENSOR CLASS
+// ============================================================
+
+class IMUSensor {
 public:
+    // Initialize all sensors and configure settings
+    // Returns status code indicating success/failure
+    IMUInitStatus init();
+
+    // Calibrate IMU (call after device is level and stable)
     void Calib();
-    void init();
+
+    // Update sensor readings from hardware
     void update();
-    // const vector& getvector(); -> return a reference to the original box/vector
-    // vector getvector(); -> copy the data return value
-    const AccelVector &getAccel() const;
-    const GyroVector &getGyro() const;
-    const MagVector &getMag() const;
-    float getTemp() const;
 
-    void printToSerial();
-    float airDensityCalc(IMUSensor &imu);
+    // Accessors for sensor data (const references for efficiency)
+    const AccelVector& getAccel() const { return accel; }
+    const GyroVector& getGyro() const { return gyro; }
+    const MagVector& getMag() const { return mag; }
+    float getTemp() const { return temp; }
 
+    // Get barometric data (pressure, temperature, altitude)
     Baro getBaro();
+
+    // Calculate air density from environmental conditions
+    // Formula: rho = P / (R_d * T_avg)
+    // Returns air density in kg/m³
+    float airDensityCalc();
+
+    // Print sensor readings to serial console (for debugging)
+    void printToSerial();
 
 private:
     AccelVector accel{0, 0, 0};
     GyroVector gyro{0, 0, 0};
     MagVector mag{0, 0, 0};
-    // temp sensor
-    float temp;
+    float temp = 0.0f;
     BMP280 bmp;
+    bool isInitialized = false;
+
+    // Gas constant for dry air (J/(kg·K))
+    static constexpr float GAS_CONSTANT_DRY_AIR = 287.058f;
+
+    // Helper: Convert temperature to Kelvin
+    static float celsiusToKelvin(float celsius) {
+        return celsius + 273.15f;
+    }
 };
