@@ -1,74 +1,55 @@
-#pragma once
 #include "BluetoothSerial.h"
 
 class BLEAngleReceiver {
 private:
-    BluetoothSerial serialBT;
+    BluetoothSerial SerialBT;
     float currentAngle = 0.0f;
-    bool isConnectedFlag = false;
-
-    const char* deviceName = "ESP32_protoAngle";
-    const char* receiverName = "M5_Display_Receiver";
+    const char* deviceName = "ESP32_protoAngle"; // sender name
 
 public:
     void init() {
-        Serial.println("[BLE] Starting Bluetooth client...");
+        Serial.println("Starting Bluetooth client...");
 
-        if (!serialBT.begin(receiverName, true)) {
-            Serial.println("[BLE] ERROR: Failed to initialize Bluetooth");
-            isConnectedFlag = false;
-            return;
+        // Start Bluetooth as client
+        if(!SerialBT.begin("M5_Display_Receiver", true)) {
+            Serial.println("Failed to start BT");
         }
 
-        Serial.printf("[BLE] Attempting connection to '%s'...\n", deviceName);
+        Serial.println("Trying to connect...");
 
-        if (serialBT.connect(deviceName)) {
-            isConnectedFlag = true;
-            Serial.println("[BLE] Connected");
+        if(SerialBT.connect(deviceName)) {
+            Serial.println("Connected to sender!");
         } else {
-            isConnectedFlag = false;
-            Serial.println("[BLE] Running in OFFLINE mode (no Bluetooth)");
+            Serial.println("Failed to connect");
         }
     }
 
-    bool tick() {
-        if (!isConnectedFlag) {
-            return false; // just run offline
-        }
+    void tick() {
+        
+        if (SerialBT.connected()) {
+            while (SerialBT.available()) {
 
-        if (!serialBT.connected()) {
-            isConnectedFlag = false;
-            Serial.println("[BLE] Disconnected → switching to OFFLINE mode");
-            return false;
-        }
+                String data = SerialBT.readStringUntil('\n');
 
-        if (serialBT.available()) {
-            String data = serialBT.readStringUntil('\n');
-            data.trim();
+                Serial.print("Received: ");
+                Serial.println(data);
 
-            float angle = data.toFloat();
+                currentAngle = data.toFloat();
 
-            // reject garbage
-            if (!(angle == 0.0f && data != "0" && data != "0.0")) {
-                if (angle >= 0.0f && angle <= 90.0f) {
-                    currentAngle = angle;
-                    Serial.printf("[BLE] Angle: %.2f\n", currentAngle);
-                }
+                Serial.print("Parsed float: ");
+                Serial.println(currentAngle);
             }
         }
-
-        return true;
-    }
-
-    bool isConnected() const {
-        return isConnectedFlag;
-    }
-
-    float getAngle() const {
-        // KEY CHANGE: safe fallback
-        if (!isConnectedFlag) {
-            return 0.0f;
+        else {
+            Serial.println("Not connected...");
         }
+    }
+
+    bool isConnected() {
+        return SerialBT.connected();
+    }
+
+    float getAngle() {
         return currentAngle;
     }
 };

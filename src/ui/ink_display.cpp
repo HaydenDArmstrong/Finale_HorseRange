@@ -20,18 +20,35 @@ void applyStep(float &value, float step, float min, float max, int dir)
 int getDirection()
 {
     auto touch = M5.Touch.getDetail();
+    int third = M5.Display.width() / 3;
 
-    if (M5.BtnA.wasPressed())
-        return +1;
-    if (M5.BtnC.wasPressed())
-        return -1;
-
+    // ============================================================
+    // TOUCH INPUT
+    // ============================================================
     if (touch.wasPressed())
     {
-        return (touch.x < M5.Display.width() / 2) ? -1 : +1;
+        Serial.println(touch.x);
+        if (touch.x < third)              // LEFT
+            return +1;
+        else if (touch.x < 2 * third)     // MIDDLE (SELECT)
+            return 2;
+        else                              // RIGHT
+            return -1;
     }
 
-    return 0;
+    // ============================================================
+    // BUTTON INPUT
+    // ============================================================
+    if (M5.BtnA.wasPressed())  // LEFT button
+        return +1;
+    
+    if (M5.BtnB.wasPressed())  // MIDDLE button (SELECT)
+        return 2;
+    
+    if (M5.BtnC.wasPressed())  // RIGHT button
+        return -1;
+
+    return 0;  // No input
 }
 
 // ============================================================
@@ -233,7 +250,7 @@ void InkDisplay::userInputStage(
                           M5.Power.getBatteryVoltage());
 
         M5.Display.setCursor(0, 80);
-        M5.Display.printf("LEFT/RIGHT or TOUCH = change");
+        M5.Display.printf("          LEFT: DECREMENT MIDDLE: SELECT RIGHT: INCREMENT         ");
         M5.Display.setCursor(0, 110);
         M5.Display.printf("DOWN = confirm");
 
@@ -248,13 +265,13 @@ void InkDisplay::userInputStage(
 
     if (stage == 0)
     {
-        if (dir != 0)
+        if (dir == 1 || dir == -1)
         {
             applyStep(dartType, 0.5f, MIN_DART_TYPE, MAX_DART_TYPE, dir);
             changed = true;
         }
 
-        if (M5.BtnB.wasPressed() && !M5.BtnB.isHolding())
+        if (dir == 2)
         {
             stage = 1;
             changed = true;
@@ -262,7 +279,7 @@ void InkDisplay::userInputStage(
     }
     else if (stage == 1)
     {
-        if (dir != 0)
+        if (dir == 1 || dir == -1)
         {
             gunType = (gunType == GunType::G2)
                           ? GunType::Model389
@@ -270,7 +287,7 @@ void InkDisplay::userInputStage(
             changed = true;
         }
 
-        if (M5.BtnB.wasPressed() && !M5.BtnB.isHolding())
+        if (dir == 2)
         {
             configComplete = true;
             stage = 0;

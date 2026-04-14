@@ -10,6 +10,7 @@
 // ============================================================
 
 #define WAKE_BTN_GPIO GPIO_NUM_38
+#define WAKE_TOUCH_GPIO GPIO_NUM_21
 #define WAKE_BTN_LEVEL 0
 
 enum class SystemState {
@@ -55,7 +56,12 @@ BLEAngleReceiver bleAngle;
 void enterDeepSleep() {
     Serial.println("[INFO] Entering deep sleep...");
     Serial.flush();
-    esp_sleep_enable_ext0_wakeup(WAKE_BTN_GPIO, WAKE_BTN_LEVEL);
+     // Enable BOTH button and touch as wakeup sources
+    esp_sleep_enable_ext1_wakeup(
+        (1ULL << WAKE_BTN_GPIO) | (1ULL << WAKE_TOUCH_GPIO),
+        ESP_EXT1_WAKEUP_ANY_HIGH
+    );
+
     esp_deep_sleep_start();
 }
 
@@ -105,38 +111,59 @@ void setup() {
     M5.begin(cfg);
 
     auto wakeReason = esp_sleep_get_wakeup_cause();
-    if (wakeReason == ESP_SLEEP_WAKEUP_EXT0)
-        Serial.println("[INFO] Wake from deep sleep");
+    
+    if (wakeReason == ESP_SLEEP_WAKEUP_EXT1) {
+        uint64_t wakeupPin = esp_sleep_get_ext1_wakeup_status();
+        
+        if (wakeupPin & (1ULL << WAKE_BTN_GPIO))
+            Serial.println("[INFO] Wake from button");
+        else if (wakeupPin & (1ULL << WAKE_TOUCH_GPIO))
+            Serial.println("[INFO] Wake from touch");
+    }
     else
         Serial.println("[INFO] Cold boot");
 
+    // ============================================================
+    // INITIALIZE HARDWARE IN CORRECT ORDER
+    // ============================================================
     Serial.println("[INFO] Initializing IMU...");
     if (imu.init() != IMUInitStatus::SUCCESS) {
         Serial.println("[ERROR] IMU init failed");
     }
+    
+    imu.Calib();  // MUST be after imu.init()
+    Serial.println("[INFO] IMU calibrated");
 
     display.initScreen();
     sdHandler.initSDCard();
-    imu.Calib();
 
     Serial.println("[INFO] Starting BLE...");
     bleAngle.init();
 
+    // ============================================================
+    // LOAD CSV AFTER IMU IS READY
+    // ============================================================
     if (configurationComplete && !csvTableLoaded) {
         loadAndCacheAirDensity();
+
+        // Debug: Check the density
+        if (cachedAirDensity <= 0.0f) {
+            Serial.println("[WARNING] Air density is 0 or negative!");
+            display.showWarning("Air density calc failed");
+        }
 
         if (sdHandler.csvRead(cachedAirDensity, dartType)) {
             csvTableLoaded = true;
             Serial.println("[INFO] CSV loaded");
         } else {
             Serial.println("[ERROR] CSV load failed");
+            Serial.printf("[DEBUG] Looking for density: %.3f\n", cachedAirDensity);
         }
     }
 
     lastActivityMs = millis();
     Serial.println("=== BOOT COMPLETE ===");
 }
-
 // ============================================================
 // CONFIG STATE
 // ============================================================
