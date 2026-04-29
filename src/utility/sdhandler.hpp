@@ -2,9 +2,9 @@
 #include <SD.h>
 #include <SPI.h>
 
-// ============================================================
+
 // ENUMERATIONS
-// ============================================================
+
 
 enum class SDSTATUS {
     UNDETECTED,
@@ -29,17 +29,17 @@ enum class CSVReadStatus {
     UNKNOWN_ERROR = 5
 };
 
-// ============================================================
+
 // SD HANDLER CLASS
-// ============================================================
+
 
 class SDHandler {
 public:
     // Initialize SD card and run diagnostics
     void initSDCard();
 
-    // Update SD status (placeholder for potential async operations)
-    void update() { /* Reserved for future use */ }
+    // Update SD status (placeholder)
+    void update() { }
 
     // Read CSV ballistics table for given air density and dart type
     // Returns true on success, false on failure
@@ -65,10 +65,10 @@ public:
     void printTableStats() const;
 
 private:
-    // ========== Configuration ==========
+    // CONFIG
     SDSTATUS _status = SDSTATUS::UNDETECTED;
 
-    // ========== Table Storage (16×16 fixed size) ==========
+
     static constexpr int MAX_ROWS = 16;
     static constexpr int MAX_COLS = 16;
 
@@ -80,7 +80,7 @@ private:
     int _numCols = 0;
     int _maxCols = 0;
 
-    // ========== Helper Methods ==========
+    // HELPER METHODS
 
     // Build CSV filename based on air density and dart type
     void buildCSVFilename(float rho, DartType dartType, char* bufOutput, size_t bufSize) const;

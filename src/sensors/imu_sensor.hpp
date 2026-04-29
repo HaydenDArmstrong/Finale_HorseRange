@@ -1,9 +1,9 @@
 #pragma once
 #include <M5UnitENV.h> // Defines BMP280 class
 
-// ============================================================
+
 // DATA STRUCTURES
-// ============================================================
+
 
 struct Baro {
     float pressure;  // Pa (Pascal)
@@ -23,9 +23,9 @@ struct MagVector {
     float x, y, z;   // μT (microtesla) - magnetic field
 };
 
-// ============================================================
+
 // INITIALIZATION STATUS
-// ============================================================
+
 
 enum class IMUInitStatus {
     SUCCESS = 0,
@@ -34,9 +34,9 @@ enum class IMUInitStatus {
     UNKNOWN_ERROR = 3
 };
 
-// ============================================================
+
 // IMU SENSOR CLASS
-// ============================================================
+
 
 class IMUSensor {
 public:

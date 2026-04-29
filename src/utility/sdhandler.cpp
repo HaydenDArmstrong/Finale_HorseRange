@@ -2,18 +2,18 @@
 #include <string.h>
 #include <M5Unified.h>
 
-// ============================================================
+
 // SPI PIN DEFINITIONS
-// ============================================================
+
 
 #define SD_SPI_SCK_PIN 14
 #define SD_SPI_MISO_PIN 13
 #define SD_SPI_MOSI_PIN 12
 #define SD_SPI_CS_PIN 4
 
-// ============================================================
+
 // INITIALIZATION
-// ============================================================
+
 
 void SDHandler::initSDCard() {
     // Initialize SPI with custom pins before SD
@@ -58,9 +58,9 @@ void SDHandler::initSDCard() {
     Serial.println("[SD] Initialization complete");
 }
 
-// ============================================================
+
 // STATUS METHODS
-// ============================================================
+
 
 const char* SDHandler::getSDStatusStr() const {
     switch (_status) {
@@ -73,9 +73,9 @@ const char* SDHandler::getSDStatusStr() const {
     }
 }
 
-// ============================================================
+
 // CSV FILENAME GENERATION
-// ============================================================
+
 
 void SDHandler::buildCSVFilename(float rho, DartType dartType, char* bufOutput, size_t bufSize) const {
     // Round air density to nearest 0.05 kg/m³
@@ -114,9 +114,9 @@ void SDHandler::buildCSVFilename(float rho, DartType dartType, char* bufOutput, 
     Serial.printf("[SD] Generated filename: %s\n", bufOutput);
 }
 
-// ============================================================
+
 // CSV READING & PARSING
-// ============================================================
+
 
 bool SDHandler::csvRead(float rho, DartType dartType) {
     // Reset internal state for fresh parse
@@ -252,9 +252,9 @@ bool SDHandler::csvRead(float rho, DartType dartType) {
     return true;
 }
 
-// ============================================================
+
 // BALLISTICS LOOKUP
-// ============================================================
+
 
 int SDHandler::gaugesPossible(float angle, float* outGauges, float* outDistances, int maxResults) {
     // Validate inputs
@@ -306,13 +306,13 @@ int SDHandler::gaugesPossible(float angle, float* outGauges, float* outDistances
     return count;
 }
 
-// ============================================================
+
 // HELPER METHODS
-// ============================================================
+
 
 bool SDHandler::parseFloatFromBuffer(const char* buffer, float& outValue) const {
     // Use sscanf to parse float - stops at non-numeric characters
-    // E.g., "30ft" → 30.0, "25.5" → 25.5, "invalid" → 0.0
+    // E.g., "30ft" -> 30.0, "25.5" -> 25.5, "invalid" -> 0.0
     int result = sscanf(buffer, "%f", &outValue);
     return result == 1;
 }

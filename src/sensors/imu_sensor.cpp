@@ -2,9 +2,9 @@
 #include <M5Unified.h>
 #include <M5UnitENV.h>
 
-// ============================================================
+
 // INITIALIZATION
-// ============================================================
+
 
 IMUInitStatus IMUSensor::init() {
     // Try to initialize BMP280 at common I2C addresses
@@ -39,9 +39,9 @@ IMUInitStatus IMUSensor::init() {
     return IMUInitStatus::SUCCESS;
 }
 
-// ============================================================
+
 // CALIBRATION
-// ============================================================
+
 
 void IMUSensor::Calib() {
     // Set manual calibration offsets (placeholder values)
@@ -50,9 +50,9 @@ void IMUSensor::Calib() {
     Serial.println("[IMU] Calibration offsets applied");
 }
 
-// ============================================================
+
 // SENSOR DATA ACQUISITION
-// ============================================================
+
 
 void IMUSensor::update() {
     // Read current sensor values from hardware
@@ -62,9 +62,9 @@ void IMUSensor::update() {
     M5.Imu.getTemp(&temp);
 }
 
-// ============================================================
-// DATA ACCESSORS (inline in .hpp for efficiency)
-// ============================================================
+
+// DATA ACCESSORS (inline in .hpp)
+
 
 Baro IMUSensor::getBaro() {
     // Trigger internal update of BMP280 measurements
@@ -78,9 +78,9 @@ Baro IMUSensor::getBaro() {
     return data;
 }
 
-// ============================================================
-// THERMODYNAMICS CALCULATION
-// ============================================================
+
+// CALCULATION
+
 
 float IMUSensor::airDensityCalc() {
     if (!isInitialized) {
@@ -115,9 +115,9 @@ float IMUSensor::airDensityCalc() {
     return rho;
 }
 
-// ============================================================
+
 // DEBUG OUTPUT
-// ============================================================
+
 
 void IMUSensor::printToSerial() {
     Serial.println("========== IMU SENSOR DATA ==========");

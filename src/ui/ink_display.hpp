@@ -2,9 +2,9 @@
 #include "sensors/imu_sensor.hpp"
 #include "utility/sdhandler.hpp"
 
-// ============================================================
+
 // ENUMERATIONS
-// ============================================================
+
 
 enum class GunType {
     G2 = 0,
@@ -12,9 +12,9 @@ enum class GunType {
 };
 
 
-// ============================================================
+
 // INK DISPLAY CLASS
-// ============================================================
+
 
 class InkDisplay {
 public:
@@ -43,6 +43,11 @@ public:
     void showWarning(const char* message);
     void showError(const char* message);
     void drawAngle(IMUSensor& imu);
+
+    // New methods for connection/sleep states
+    void showBLEConnecting();
+    void showBLEConnected();
+    void showSleepWarning();
 
 
 

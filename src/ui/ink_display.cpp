@@ -3,9 +3,7 @@
 #include <M5Unified.h>
 #include <math.h>
 
-// ============================================================
-// INPUT HELPERS (shared for buttons + touch)
-// ============================================================
+//helper fcns
 
 void applyStep(float &value, float step, float min, float max, int dir)
 {
@@ -22,9 +20,9 @@ int getDirection()
     auto touch = M5.Touch.getDetail();
     int third = M5.Display.width() / 3;
 
-    // ============================================================
+    
     // TOUCH INPUT
-    // ============================================================
+    
     if (touch.wasPressed())
     {
         Serial.println(touch.x);
@@ -36,9 +34,9 @@ int getDirection()
             return -1;
     }
 
-    // ============================================================
+    
     // BUTTON INPUT
-    // ============================================================
+    
     if (M5.BtnA.wasPressed())  // LEFT button
         return +1;
     
@@ -51,9 +49,24 @@ int getDirection()
     return 0;  // No input
 }
 
-// ============================================================
-// INITIALIZATION
-// ============================================================
+
+void drawBatteryBar(int x, int y, int width, int height, int percentage)
+{
+    // Draw outer box
+    M5.Display.drawRect(x, y, width, height, BLACK);
+    
+    // Draw filled portion based on percentage
+    int fillWidth = (width * percentage) / 100;
+    if (fillWidth > 2) {
+        M5.Display.fillRect(x + 1, y + 1, fillWidth - 2, height - 2, BLACK);
+    }
+    
+    // Draw battery terminal 
+    M5.Display.fillRect(x + width + 2, y + (height / 4), 3, height / 2, BLACK);
+}
+
+
+
 
 void InkDisplay::initScreen()
 {
@@ -71,9 +84,7 @@ void InkDisplay::initScreen()
     Serial.println("[DISPLAY] Screen initialized");
 }
 
-// ============================================================
-// BALLISTICS DISPLAY
-// ============================================================
+//screen refresh logic
 
 void InkDisplay::screenRefresh(
     IMUSensor &imu,
@@ -85,54 +96,101 @@ void InkDisplay::screenRefresh(
     int gaugeCount)
 {
 
-    // ============================================================
     // SAFETY CHECKS
-    // ============================================================
     if (!gauges || !distances || gaugeCount < 0)
     {
         showError("Invalid gauge/distance data");
         return;
     }
 
-    // ============================================================
-    // SENSOR COMPUTATION
-    // ============================================================
     // Calculate air density from IMU/environment sensor
     float rho = imu.airDensityCalc();
 
-    // ============================================================
-    // SCREEN RESET
-    // ============================================================
+    //reset screen
     M5.Display.clear(WHITE);
     setTextStyle(1); // small font for header
 
-    // ============================================================
-    // HEADER INFO SECTION
-    // ============================================================
-    M5.Display.setCursor(0, 0);
-    M5.Display.printf("Batt: %d%%  SD: %s",
-                      M5.Power.getBatteryLevel(),
-                      sdhandler.getSDStatusStr());
 
+    // HEADER INFO SECTION
+    
+    // Get temperature and pressure from IMU
+    Baro baro = imu.getBaro();
+    float temp = baro.cTemp;
+    float pressure = baro.pressure;
+    float altitude = baro.altitude;
+    
+    // Get time since boot (HH:MM:SS)
+    unsigned long bootTime = millis();
+    unsigned int seconds = (bootTime / 1000) % 60;
+    unsigned int minutes = (bootTime / 60000) % 60;
+    unsigned int hours = (bootTime / 3600000);
+    
+    int screenWidth = M5.Display.width();
+    int screenHeight = M5.Display.height();
+    int batteryPercent = M5.Power.getBatteryLevel();
+    
+ 
+    // HEADER - LEFT SIDE
+
+    M5.Display.setCursor(0, 0);
+    M5.Display.printf("Battery:");
+
+    // Draw battery bar (small, inline)
+    drawBatteryBar(100, 0, 40, 18, batteryPercent);
+    
+    M5.Display.setCursor(160, 0);
+    M5.Display.printf("%d%%", batteryPercent);
+    
     M5.Display.setCursor(0, 25);
-    M5.Display.printf("Density: %.3f kg/m^3  Angle: %.1fdeg",
-                      rho,
-                      angle);
+    M5.Display.printf("Density: %.3f kg/m^3", rho);
 
     M5.Display.setCursor(0, 50);
     M5.Display.printf("Dart: %.1f CC", dartType);
+    
 
-    // ============================================================
+    //  HEADER - RIGHT SIDE
+
+    setTextStyle(1);  // Small font
+    
+    // SD Status
+    M5.Display.setCursor(screenWidth - 150, 0);
+    M5.Display.printf("SD: %s", sdhandler.getSDStatusStr());
+    
+    // Time
+    M5.Display.setCursor(screenWidth - 200, 25);
+    M5.Display.printf("Time: %02u:%02u:%02u", hours, minutes, seconds);
+
+  
+    // ANGLE HIGHLIGHT - CENTER TOP (BOXED)
+
+    int angleBoxX = (screenWidth / 2) - 80;
+    int angleBoxY = 5;
+    M5.Display.drawRect(angleBoxX, angleBoxY, 180, 70, BLACK);
+    M5.Display.fillRect(angleBoxX + 1, angleBoxY + 1, 178, 18, BLACK);
+    
+    M5.Display.setTextColor(WHITE, BLACK);
+    setTextStyle(1);
+    M5.Display.setCursor(angleBoxX + 40, angleBoxY + 3);
+    M5.Display.printf("ANGLE");
+    
+    M5.Display.setTextColor(BLACK, WHITE);
+    setTextStyle(2);  // Larger font
+    M5.Display.setCursor(angleBoxX + 30, angleBoxY + 30);
+    M5.Display.printf("%.1f *", angle);
+
+    // DIVIDER LINE FOR HEADER AND BODY
+
+    M5.Display.drawLine(0, 75, screenWidth, 75, BLACK);
+
     // TABLE LAYOUT SETUP
-    // ============================================================
-    const int tableStartY = TABLE_START_Y;
+   
+    const int tableStartY = 90;  // Below divider
     const int tableStartX = TABLE_START_X;
     const int colWidth = COL_WIDTH;
 
-    const int screenHeight = M5.Display.height();
     const int availableHeight = screenHeight - tableStartY - 20;
 
-    // Compute row height dynamically based on number of entries
+    // Compute row height  based on number of entries
     int rowHeight = (availableHeight / (gaugeCount + 1));
 
     // Minimum row height guard
@@ -147,14 +205,16 @@ void InkDisplay::screenRefresh(
                   gaugeCount,
                   rowHeight);
 
-    // ============================================================
-    // TABLE BORDER
-    // ============================================================
+    
+    // TABLE BORDER with explicit left/right lines
+    
     M5.Display.drawRect(tableStartX, tableStartY, tableWidth, tableHeight, BLACK);
+    M5.Display.drawLine(tableStartX, tableStartY, tableStartX, tableStartY + tableHeight, BLACK);
+    M5.Display.drawLine(tableStartX + tableWidth, tableStartY, tableStartX + tableWidth, tableStartY + tableHeight, BLACK);
 
-    // ============================================================
-    // TABLE HEADER ROW
-    // ============================================================
+    
+    // TABLE HEADER ROW (bold)
+    
     M5.Display.fillRect(tableStartX, tableStartY, tableWidth, rowHeight, BLACK);
     M5.Display.setTextColor(WHITE, BLACK);
     setTextStyle(1);
@@ -165,14 +225,13 @@ void InkDisplay::screenRefresh(
     M5.Display.setCursor(tableStartX + colWidth + 10, tableStartY + (rowHeight / 2) - 5);
     M5.Display.printf("Distance (Ft)");
 
-    // ============================================================
+    
     // DATA ROWS
-    // ============================================================
+    
     M5.Display.setTextColor(BLACK, WHITE);
 
     for (int i = 0; i < gaugeCount; i++)
     {
-
         const int rowY = tableStartY + (i + 1) * rowHeight;
 
         // Row separator
@@ -188,7 +247,7 @@ void InkDisplay::screenRefresh(
             tableStartX + colWidth,
             tableStartY + (i + 1) * rowHeight - rowHeight,
             tableStartX + colWidth,
-            rowY,
+            rowY + 50,
             BLACK);
 
         // Left column: gauge values
@@ -200,9 +259,9 @@ void InkDisplay::screenRefresh(
         M5.Display.printf("%.2f", distances[i]);
     }
 
-    // ============================================================
+    
     // BOTTOM BORDER
-    // ============================================================
+    
     M5.Display.drawLine(
         tableStartX,
         tableStartY + tableHeight,
@@ -210,14 +269,61 @@ void InkDisplay::screenRefresh(
         tableStartY + tableHeight,
         BLACK);
 
-    // ============================================================
+    
+    // TEMPERATURE BOX (right side of table)
+    
+    float tempF = (temp * 9.0f / 5.0f) + 32.0f;
+    
+    int tempBoxX = tableStartX + tableWidth + 40;
+    int tempBoxY = tableStartY + 20;
+    
+    // Draw box with header
+    M5.Display.drawRect(tempBoxX, tempBoxY, 180, 90, BLACK);
+    M5.Display.fillRect(tempBoxX + 1, tempBoxY + 1, 178, 18, BLACK);
+    
+    M5.Display.setTextColor(WHITE, BLACK);
+    setTextStyle(1);
+    M5.Display.setCursor(tempBoxX + 55, tempBoxY + 3);
+    M5.Display.printf("TEMP");
+
+    
+    M5.Display.setCursor(tempBoxX + 15, tempBoxY + 40);
+    setTextStyle(2);
+    M5.Display.printf("%.1f *F", tempF);
+
+    
+    // PRESSURE/ALTITUDE BOX (below temperature)
+    
+    int pressBoxX = tempBoxX;
+    int pressBoxY = tempBoxY + 105;
+    
+    M5.Display.drawRect(pressBoxX, pressBoxY, 180, 90, BLACK);
+    M5.Display.fillRect(pressBoxX + 1, pressBoxY + 1, 178, 18, BLACK);
+    
+    M5.Display.setTextColor(WHITE, BLACK);
+    setTextStyle(1);
+    M5.Display.setCursor(pressBoxX + 30, pressBoxY + 2);
+    M5.Display.printf("PRESSURE");
+    
+    M5.Display.setTextColor(BLACK, WHITE);
+    setTextStyle(1);
+    M5.Display.setCursor(pressBoxX + 10, pressBoxY + 25);
+    M5.Display.printf("%.0f Pa", pressure);
+    
+    M5.Display.setCursor(pressBoxX + 10, pressBoxY + 50);
+    M5.Display.printf("Alt: %.1f f", altitude*3.280839895);
+
+    
+
+    
     // PUSH TO DISPLAY
-    // ============================================================
+    
     M5.Display.display();
 }
-// ============================================================
+
+
 // CONFIGURATION INPUT STAGE
-// ============================================================
+
 
 void InkDisplay::userInputStage(
     SDHandler &sdhandler,
@@ -236,31 +342,11 @@ void InkDisplay::userInputStage(
 
     bool changed = false;
 
-    // =========================
-    // INITIAL SCREEN DRAW
-    // =========================
-    if (firstRun)
-    {
-        M5.Display.clear(WHITE);
-        setTextStyle(1);
 
-        M5.Display.setCursor(0, 40);
-        M5.Display.printf("Battery: %d%% (%d mV)",
-                          M5.Power.getBatteryLevel(),
-                          M5.Power.getBatteryVoltage());
 
-        M5.Display.setCursor(0, 80);
-        M5.Display.printf("          LEFT: DECREMENT MIDDLE: SELECT RIGHT: INCREMENT         ");
-        M5.Display.setCursor(0, 110);
-        M5.Display.printf("DOWN = confirm");
-
-        M5.Display.display();
-        firstRun = false;
-    }
-
-    // =========================
-    // INPUT HANDLING (UNIFIED)
-    // =========================
+  
+    // INPUT HANDLING 
+    
     int dir = getDirection();
 
     if (stage == 0)
@@ -295,9 +381,9 @@ void InkDisplay::userInputStage(
         }
     }
 
-    // =========================
+  
     // DISPLAY UPDATE
-    // =========================
+  
     if (changed)
     {
         M5.Display.fillRect(0, Y_POS, M5.Display.width(), 100, WHITE);
@@ -314,9 +400,9 @@ void InkDisplay::userInputStage(
     }
 }
 
-// ============================================================
+
 // ERROR / WARNING
-// ============================================================
+
 
 void InkDisplay::showWarning(const char *message)
 {
@@ -356,9 +442,128 @@ void InkDisplay::showError(const char *message)
     delay(3000);
 }
 
-// ============================================================
+
+// BLE CONNECTION STATE DISPLAYS
+
+
+void InkDisplay::showBLEConnecting()
+{
+    M5.Display.clear(WHITE);
+    setTextStyle(2);  // Large font
+    M5.Display.setTextColor(BLACK, WHITE);
+
+    // Draw title
+    M5.Display.setCursor(M5.Display.width() / 2 - 200, 80);
+    M5.Display.printf("BLE CONNECTING");
+
+    setTextStyle(1);
+    M5.Display.setCursor(M5.Display.width() / 2 - 200, 140);
+    M5.Display.printf("Searching for angle sensor...");
+    
+    // Draw a simple circle to indicate activity
+    int cx = M5.Display.width() / 2;
+    int cy = 220;
+    int radius = 30;
+    
+    // Draw animated spinner indicator
+    static int spinFrame = 0;
+    float angle = (spinFrame % 8) * 45.0f * M_PI / 180.0f;
+    int x = cx + (int)(20 * cos(angle));
+    int y = cy + (int)(20 * sin(angle));
+    
+    M5.Display.drawCircle(cx, cy, radius, BLACK);
+    M5.Display.fillCircle(x, y, 5, BLACK);
+    
+    spinFrame++;
+    
+    // Footer warning
+    M5.Display.setTextColor(BLACK, WHITE);
+    setTextStyle(1);
+    M5.Display.setCursor(20, M5.Display.height() - 30);
+    M5.Display.printf("Do not power off device");
+
+    M5.Display.display();
+}
+
+void InkDisplay::showBLEConnected()
+{
+    M5.Display.clear(WHITE);
+    setTextStyle(2);
+    M5.Display.setTextColor(BLACK, WHITE);
+
+    // Draw title
+    M5.Display.setCursor(M5.Display.width() / 2 - 200, 80);
+    M5.Display.printf("BLE CONNECTED");
+
+    setTextStyle(1);
+    M5.Display.setCursor(M5.Display.width() / 2 - 200, 140);
+    M5.Display.printf("Angle sensor ready");
+
+    // checkmark symbol
+    int cx = M5.Display.width() / 2;
+    int cy = 240;
+    M5.Display.drawLine(cx - 20, cy, cx - 5, cy + 15, BLACK);
+    M5.Display.drawLine(cx - 5, cy + 15, cx + 30, cy - 20, BLACK);
+
+    M5.Display.display();
+    delay(1500);  // Brief confirmation display
+    M5.Display.clearDisplay();
+
+    //header
+    M5.Display.setCursor(0, 40);
+        M5.Display.printf("Battery: %d%% (%d mV)",
+                          M5.Power.getBatteryLevel(),
+                          M5.Power.getBatteryVoltage());
+
+        M5.Display.setCursor(0, 80);
+        M5.Display.printf("          LEFT: DECREMENT       MIDDLE: SELECT        RIGHT: INCREMENT         ");
+
+        M5.Display.display();
+}
+
+void InkDisplay::showSleepWarning()
+{
+    // First flash - attention grabber
+    M5.Display.clear(WHITE);
+    setTextStyle(3);  // Extra large
+    M5.Display.setTextColor(BLACK, WHITE);
+
+    M5.Display.setCursor(M5.Display.width() / 2 - 200, 80);
+    M5.Display.printf("SLEEP MODE");
+
+    setTextStyle(2);
+    M5.Display.setCursor(M5.Display.width() / 2 - 250, 180);
+    M5.Display.printf("Device entering sleep");
+
+    setTextStyle(1);
+    M5.Display.setCursor(20, 260);
+    M5.Display.printf("Press button to wake");
+
+    M5.Display.display();
+    delay(500);
+    
+    // Flash off
+    M5.Display.clear(WHITE);
+    M5.Display.display();
+    delay(300);
+    
+    // Show again
+    M5.Display.setTextColor(BLACK, WHITE);
+    setTextStyle(3);
+    M5.Display.setCursor(M5.Display.width() / 2 - 200, 80);
+    M5.Display.printf("SLEEP MODE");
+    
+    setTextStyle(1);
+    M5.Display.setCursor(20, 260);
+    M5.Display.printf("Press button to wake");
+    
+    M5.Display.display();
+    delay(2000);  // Give user time to read
+}
+
+
 // ANGLE VISUALIZATION
-// ============================================================
+
 
 void InkDisplay::drawAngle(IMUSensor &imu)
 {
@@ -388,9 +593,9 @@ void InkDisplay::drawAngle(IMUSensor &imu)
     M5.Display.display();
 }
 
-// ============================================================
+
 // HELPERS
-// ============================================================
+
 
 void InkDisplay::setTextStyle(uint8_t size)
 {
